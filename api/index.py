@@ -20,6 +20,9 @@ app.add_middleware(
 
 # Include the router from services.py
 app.include_router(router)
+@app.get("/")
+async def read_root():
+    return {"message": "Welcome to the FastAPI application!"}
 
 @app.get("/health")
 def health():
