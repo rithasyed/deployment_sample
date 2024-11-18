@@ -223,7 +223,7 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
 
 router = APIRouter()
 
-@router.get('/api/data/{ticker}/{interval}/{ema_period}/{vwap_period}/{vwap_std_dev}')
+@router.options('/api/data/{ticker}/{interval}/{ema_period}/{vwap_period}/{vwap_std_dev}')
 def get_data(ticker: str, interval: str, ema_period: int, vwap_period: int, vwap_std_dev: float):
     try:
         candlestick_data, ema_data, macd_data, vwap_data, vwap_signals = fetch_yahoo_data(
@@ -240,7 +240,7 @@ def get_data(ticker: str, interval: str, ema_period: int, vwap_period: int, vwap
         print(f"Error in get_data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-@router.get('/api/symbols')
+@router.options('/api/symbols')
 def get_symbols():
     with open('symbols.txt') as f:
         symbols = [line.strip() for line in f]
