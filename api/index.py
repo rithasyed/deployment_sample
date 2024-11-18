@@ -5,19 +5,20 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 # Your CORS setup
-frontend_url = "https://stcokbot-frontend.vercel.app/"
-origins = [frontend_url]
+origins = [
+    "https://deployment-sample-ne2ffev2h-ritha24s-projects.vercel.app",
+    "https://stcokbot-frontend.vercel.app/",
+    "http://localhost:3000",  # for local development
+]
 
+# Add the CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,  # List of allowed origins
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
-
 # Include the router from services.py
 app.include_router(router)
 @app.get("/")
