@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 # Your CORS setup
-frontend_url = "https://stockbot-frontend.vercel.app"
+frontend_url = "https://stcokbot-frontend.vercel.app/"
 origins = [frontend_url]
 
 app.add_middleware(
