@@ -6,8 +6,8 @@ app = FastAPI()
 
 # Your CORS setup
 origins = [
-    "https://deployment-sample-ne2ffev2h-ritha24s-projects.vercel.app",
-    "https://stcokbot-frontend.vercel.app/",
+    "https://deployment-sample-eight.vercel.app",
+    "https://stcokbot-frontend.vercel.app",
     "http://localhost:3000",  # for local development
 ]
 
