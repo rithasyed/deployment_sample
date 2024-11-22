@@ -12,10 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 # CORS setup
-origins = [
-    "https://stcokbot-frontend.vercel.app",
-    "http://localhost:3000",  # for local development
-]
+origins = ["*"]  # for local development
+
 
 # Add CORS middleware
 app.add_middleware(
