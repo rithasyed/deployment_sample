@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 # CORS setup
-origins = ["*"]  # for local development
+origins = ["*","localhost:4000"]  # for local development
 
 
 # Add CORS middleware
