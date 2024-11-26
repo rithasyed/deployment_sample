@@ -301,15 +301,16 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     elif interval == '1mo':
         start_date = end_date - timedelta(days=365*5)
     
-    # Download data and reset index to ensure a single-level index
-    data = yf.download(ticker, start=start_date, end=end_date, interval=interval).reset_index()
+    data = yf.download(ticker, start=start_date, end=end_date, interval=interval)
     
     data['EMA'] = ta.ema(data['Close'], length=int(ema_period))
 
     macd = ta.macd(data['Close'], fast=macd_fast, slow=macd_slow, signal=macd_signal)
     data = pd.concat([data, macd], axis=1)
 
-    data.ta.macd(close='Close', fast=12, slow=26, signal=9, append=True)
+    data = pd.DataFrame(data)
+    data.ta.macd(close='close', fast=12, slow=26, signal=9, append=True)
+    print(data.head())
     
     data['Volume_MA'] = data['Volume'].rolling(window=20).mean()
 
@@ -319,7 +320,6 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     data['VWAP_Std'] = data['VWAP'].rolling(window=vwap_period).std()
     data['VWAP_Upper'] = data['VWAP'] + (vwap_std_dev * data['VWAP_Std'])
     data['VWAP_Lower'] = data['VWAP'] - (vwap_std_dev * data['VWAP_Std'])
-    
     data = calculate_ripster_signals(data)
     data = calculate_ttm_waves(data)
     data = calculate_rsi_exit_signals(data)
@@ -327,43 +327,61 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
 
     candlestick_data = [
         {
-            'time': int(row['Date'].timestamp()),
-            'open': row['Open'],
-            'high': row['High'],
-            'low': row['Low'],
-            'close': row['Close']
+            'time': int(row.Index.timestamp()),
+            'open': row.Open,
+            'high': row.High,
+            'low': row.Low,
+            'close': row.Close
         }
-        for _, row in data.iterrows()
+        for row in data.itertuples()
     ]
+
+    # ema_data = [
+    #     {
+    #         'time': int(row.Index.timestamp()),
+    #         'value': row.EMA
+    #     }
+    #     for row in data.itertuples() if not pd.isna(row.EMA)
+    # ]
 
     macd_data = [
         {
-            'time': int(row['Date'].timestamp()),
-            'macd': row['MACD_12_26_9'] if not pd.isna(row['MACD_12_26_9']) else 0,
-            'signal': row['MACDs_12_26_9'] if not pd.isna(row['MACDs_12_26_9']) else 0,
-            'histogram': row['MACDh_12_26_9'] if not pd.isna(row['MACDh_12_26_9']) else 0
+            'time': int(row.Index.timestamp()),
+            'macd': row.MACD_12_26_9 if not pd.isna(row.MACD_12_26_9) else 0,
+            'signal': row.MACDs_12_26_9 if not pd.isna(row.MACDs_12_26_9) else 0,
+            'histogram': row.MACDh_12_26_9 if not pd.isna(row.MACDh_12_26_9) else 0
         }
-        for _, row in data.iterrows()
+        for row in data.itertuples()
     ]
+
+    # vwap_data = [
+    #     {
+    #         'time': int(row.Index.timestamp()),
+    #         'vwap': row.VWAP if not pd.isna(row.VWAP) else 0,
+    #         'upper': row.VWAP_Upper if not pd.isna(row.VWAP_Upper) else 0,
+    #         'lower': row.VWAP_Lower if not pd.isna(row.VWAP_Lower) else 0
+    #     }
+    #     for row in data.itertuples()
+    # ]
 
     vwap_signals = [
         {
-            'time': int(row['Date'].timestamp()),
-            'signal_up': bool(row['signal_up']),
-            'signal_down': bool(row['signal_down']),
-            'ripster_signal_up': bool(row['ripster_signal_up']),
-            'ripster_signal_down': bool(row['ripster_signal_down']),
-            'yellow_signal_up': bool(row['lowerVwapCrossYellow']),
-            'yellow_signal_down': bool(row['upperVwapCrossYellow']), 
-            'rsi_exit_up': bool(row['lowerRsiOversold']), 
-            'rsi_exit_down': bool(row['upperRsiOverbought'])    
-        }
-        for _, row in data.iterrows()
+        'time': int(row.Index.timestamp()),
+        'signal_up': bool(row.signal_up),
+        'signal_down': bool(row.signal_down),
+        'ripster_signal_up': bool(row.ripster_signal_up),
+        'ripster_signal_down': bool(row.ripster_signal_down),
+        'yellow_signal_up': bool(row.lowerVwapCrossYellow),
+        'yellow_signal_down': bool(row.upperVwapCrossYellow), 
+        'rsi_exit_up': bool(row.lowerRsiOversold), 
+        'rsi_exit_down': bool(row.upperRsiOverbought)    
+            
+    }
+    for i, row in enumerate(data.itertuples())
     ]
-
     ttm_waves_data = [
         {
-            'time': int(row['Date'].timestamp()),
+            'time': int(index.timestamp()),
             'wave_a_slow': row['macd_a_slow'] if not pd.isna(row['macd_a_slow']) else 0,
             'wave_a_fast': row['macd_a_fast'] if not pd.isna(row['macd_a_fast']) else 0,
             'momentum': row['momentum'] if not pd.isna(row['momentum']) else 0,
@@ -371,22 +389,22 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
             'squeeze': 'high' if row['high_sqz'] else 'mid' if row['mid_sqz'] else 'low' if row['low_sqz'] else 'none',
             'atr1': row['atr1'] if not pd.isna(row['atr1']) else 0
         }
-        for _, row in data.iterrows()
+        for index, row in data.iterrows()
     ]
-
     ttm_squeeze_signals = [
-        {
-            'time': int(row['Date'].timestamp()),
-            'squeeze_signal_up': bool(row['squeeze_signal_up']),
-            'squeeze_signal_down': bool(row['squeeze_signal_down']),
-            'ripster_signal_up': bool(row['ripster_signal_up']),
-            'ripster_signal_down': bool(row['ripster_signal_down']),
-            'yellow_signal_up': bool(row['yellow_signal_up']),
-            'yellow_signal_down': bool(row['yellow_signal_down']),
-            'signal_red_dot': bool(row['signal_red_dot'])
-        }
-        for _, row in data.iterrows()
-    ]
+    {
+        'time': int(row.Index.timestamp()),
+        'squeeze_signal_up': bool(row.squeeze_signal_up),
+        'squeeze_signal_down': bool(row.squeeze_signal_down),
+        'ripster_signal_up': bool(row.ripster_signal_up),
+        'ripster_signal_down': bool(row.ripster_signal_down),
+        'yellow_signal_up': bool(row.yellow_signal_up),
+        'yellow_signal_down': bool(row.yellow_signal_down),
+        'signal_red_dot': bool(row.signal_red_dot)
+    }
+    for row in data.itertuples()
+]
+
     
     return candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals
     
