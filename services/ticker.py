@@ -138,8 +138,8 @@ def calculate_rsi_exit_signals(data):
             resetLow = 0
         else:
             resetLow = 1
+    
     return data
-
 def calculate_ttm_waves(data):
 
     data['macd_a_slow'] = ta.macd(data['Close'], fastperiod=8, slowperiod=55, signalperiod=55).iloc[:, 2] 
@@ -192,7 +192,6 @@ def calculate_ttm_waves(data):
     data['ao'] = ta.sma((data['High'] + data['Low']) / 2, 5) - ta.sma((data['High'] + data['Low']) / 2, 34)    
     
     return data
-
 def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offset=0.1):
     def ttm_squeeze(src, length=20, n_k=1.5, n_bb=2.0):
 
@@ -222,10 +221,10 @@ def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offs
         sqz_on = mid_sqz | high_sqz
         return sqz_on.astype(int)
 
-    data['price1'] = data['Close'].resample('1min').last()
-    data['price2'] = data['Close'].resample('5min').last()
-    data['price3'] = data['Close'].resample('15min').last()
-    data['price4'] = data['Close'].resample('60min').last()
+    data['price1'] = data['Close'].resample('1T').last()
+    data['price2'] = data['Close'].resample('5T').last()
+    data['price3'] = data['Close'].resample('15T').last()
+    data['price4'] = data['Close'].resample('60T').last()
     
     data = data.fillna(method='ffill')
 
@@ -289,7 +288,6 @@ def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offs
     data['yellow_signal_down'] = (plot_yellow & data['high_volume'] & (data['price_below_ema5'] | data['price_above_ema_up']) & (~data['mom_down']) & data['noSqz'])
     
     return data
-
 def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26, macd_signal=9, vwap_period=20, vwap_std_dev=2):
     end_date = datetime.now()
     if interval in ['1m', '5m']:
@@ -381,7 +379,6 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     }
     for i, row in enumerate(data.itertuples())
     ]
-
     ttm_waves_data = [
         {
             'time': int(index.timestamp()),
@@ -394,7 +391,6 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         }
         for index, row in data.iterrows()
     ]
-
     ttm_squeeze_signals = [
     {
         'time': int(row.Index.timestamp()),
@@ -407,7 +403,8 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         'signal_red_dot': bool(row.signal_red_dot)
     }
     for row in data.itertuples()
-    ]
+]
 
+    
     return candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals
     
