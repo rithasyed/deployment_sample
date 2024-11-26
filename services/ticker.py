@@ -309,7 +309,7 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     data = pd.concat([data, macd], axis=1)
 
     data = pd.DataFrame(data)
-    # data.ta.macd(close='close', fast=12, slow=26, signal=9, append=True)
+    data.ta.macd(close='close', fast=12, slow=26, signal=9, append=True)
     print(data.head())
     
     data['Volume_MA'] = data['Volume'].rolling(window=20).mean()
