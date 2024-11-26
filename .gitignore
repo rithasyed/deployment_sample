@@ -94,9 +94,6 @@ celerybeat-schedule
 # SageMath parsed files
 *.sage.py
 
-# dotenv
-.env
-
 # mypy
 .mypy_cache/
 .dmypy.json

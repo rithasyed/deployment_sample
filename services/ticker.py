@@ -1,28 +1,8 @@
 from datetime import datetime, timedelta
 import pandas as pd
-import pandas_ta as ta
-import yfinance as yf
-import json
+import pandas_ta as ta # type: ignore
+import yfinance as yf # type: ignore
 import numpy as np
-from fastapi import FastAPI, APIRouter, HTTPException
-from requests import request
-from fastapi.middleware.cors import CORSMiddleware
-
-# Initialize FastAPI app
-app = FastAPI()
-
-# CORS setup
-origins = ["*","localhost:4000"]  # for local development
-
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
 
 def calculate_ripster_signals(data, do_arrows=True, slope_degree=45, volumeLength=50):
     
@@ -158,8 +138,8 @@ def calculate_rsi_exit_signals(data):
             resetLow = 0
         else:
             resetLow = 1
-    
     return data
+
 def calculate_ttm_waves(data):
 
     data['macd_a_slow'] = ta.macd(data['Close'], fastperiod=8, slowperiod=55, signalperiod=55).iloc[:, 2] 
@@ -212,6 +192,7 @@ def calculate_ttm_waves(data):
     data['ao'] = ta.sma((data['High'] + data['Low']) / 2, 5) - ta.sma((data['High'] + data['Low']) / 2, 34)    
     
     return data
+
 def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offset=0.1):
     def ttm_squeeze(src, length=20, n_k=1.5, n_bb=2.0):
 
@@ -241,10 +222,10 @@ def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offs
         sqz_on = mid_sqz | high_sqz
         return sqz_on.astype(int)
 
-    data['price1'] = data['Close'].resample('1T').last()
-    data['price2'] = data['Close'].resample('5T').last()
-    data['price3'] = data['Close'].resample('15T').last()
-    data['price4'] = data['Close'].resample('60T').last()
+    data['price1'] = data['Close'].resample('1min').last()
+    data['price2'] = data['Close'].resample('5min').last()
+    data['price3'] = data['Close'].resample('15min').last()
+    data['price4'] = data['Close'].resample('60min').last()
     
     data = data.fillna(method='ffill')
 
@@ -308,6 +289,7 @@ def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offs
     data['yellow_signal_down'] = (plot_yellow & data['high_volume'] & (data['price_below_ema5'] | data['price_above_ema_up']) & (~data['mom_down']) & data['noSqz'])
     
     return data
+
 def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26, macd_signal=9, vwap_period=20, vwap_std_dev=2):
     end_date = datetime.now()
     if interval in ['1m', '5m']:
@@ -399,6 +381,7 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     }
     for i, row in enumerate(data.itertuples())
     ]
+
     ttm_waves_data = [
         {
             'time': int(index.timestamp()),
@@ -411,6 +394,7 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         }
         for index, row in data.iterrows()
     ]
+
     ttm_squeeze_signals = [
     {
         'time': int(row.Index.timestamp()),
@@ -423,50 +407,7 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         'signal_red_dot': bool(row.signal_red_dot)
     }
     for row in data.itertuples()
-]
+    ]
 
-    
     return candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals
-
-# API Routes
-@app.get("/")
-async def read_root():
-    return {"message": "Welcome to the FastAPI application!"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-@app.get('/api/data/{ticker}/{interval}/{ema_period}/{vwap_period}/{vwap_std_dev}')
-def get_data(ticker: str, interval: str, ema_period: int, vwap_period: int, vwap_std_dev: float):
-    try:
-        candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals = fetch_yahoo_data(
-            ticker, interval, ema_period=ema_period, vwap_period=vwap_period, vwap_std_dev=vwap_std_dev
-        )
-        return {
-            'candlestick': candlestick_data,
-            # 'ema': ema_data,
-            'macd': macd_data,
-            # 'vwap': vwap_data,
-            'vwap_signals': vwap_signals,
-            'ttm_waves':ttm_waves_data,
-            'ttm_squeeze_signals': ttm_squeeze_signals
-        }
-    except Exception as e:
-        print(f"Error in get_data: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-@app.get('/api/symbols')
-def get_symbols():
-    with open('symbols.txt') as f:
-        symbols = [line.strip() for line in f]
-    return symbols
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=5001,
-        reload=True,
-    )
+    
