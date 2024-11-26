@@ -30,7 +30,7 @@ def get_data(ticker: str, interval: str, ema_period: int, vwap_period: int, vwap
             'ttm_squeeze_signals': ttm_squeeze_signals
         }
     except Exception as e:
-        print(f"Error in get_data: {str(e)}")
+        print(f"Error in get_data: {e.str()}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 # @router.get('/symbols')
