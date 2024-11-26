@@ -304,9 +304,6 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         start_date = end_date - timedelta(days=365*5)
     
     data = yf.download(ticker, start=start_date, end=end_date, interval=interval)
-    
-    # Ensure the index is reset and converted to a single index
-    data = data.reset_index()
 
     data['EMA'] = ta.ema(data['Close'], length=int(ema_period))
 
