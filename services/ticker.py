@@ -307,10 +307,6 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     
     # Ensure the index is reset and converted to a single index
     data = data.reset_index()
-    
-    # Explicitly handle the datetime column
-    data['Datetime'] = pd.to_datetime(data['Date'])
-    data.set_index('Datetime', inplace=True)
 
     data['EMA'] = ta.ema(data['Close'], length=int(ema_period))
 
