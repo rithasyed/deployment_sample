@@ -10,11 +10,15 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlencode
 from api.router import router
-import nest_asyncio  # type: ignore
+import asyncio
+import uvloop  # Import uvloop
 from apscheduler.schedulers.asyncio import AsyncIOScheduler #type: ignore
 from apscheduler.jobstores.memory import MemoryJobStore #type: ignore
 from models import symbols, tradeBook
 from database import engine, Base
+
+# Set UVLoop as the event loop policy BEFORE any other imports or operations
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 Base.metadata.create_all(bind=engine)
 manager = ConnectionManager()
@@ -25,17 +29,14 @@ jobstores = {
 
 # Initialize an AsyncIOScheduler with the jobstore
 scheduler = AsyncIOScheduler(jobstores=jobstores, timezone='Asia/Kolkata')
-# Job running every 10 seconds
 
-  
-nest_asyncio.apply()
-
+# Remove nest_asyncio.apply() completely
+# If you need nested event loops, you'll need a different approach
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start()
     yield
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -68,31 +69,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # Keep the connection alive, optionally handle messages from frontend
             await websocket.receive_text()
-            # await websocket.send_text("Hi")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# @scheduler.scheduled_job('interval', seconds=60)
-# async def scheduled_job_1():
-#     result = await fetch_and_analyze_data(manager,"1m")
-#     print("res",result)
-    # await manager.broadcast(result)
-    
-# @scheduler.scheduled_job('interval', seconds=60 * 15)
-# async def scheduled_job_2():
-#     result = await fetch_and_analyze_data(manager,"15m")
-#     print("res",result)
-#     # await manager.broadcast(result)
-
-
 @app.get("/health")
 def health():
-    return {"status": "ok"};
-
-
-
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
@@ -100,5 +83,5 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=5001,
-        reload= True,
+        reload=True,
     )
