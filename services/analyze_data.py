@@ -23,10 +23,10 @@ async def fetch_and_analyze_data(manager: ConnectionManager, interval="15m"):
         # ticker = "AAPL"  # Replace with your desired ticker
         # interval = "15m"  # Replace with your desired interval
 
-        candlestick_data, ema_data, macd_data, vwap_data, arrow_signals, ttm_waves_data = fetch_yahoo_data(ticker, interval)
+        candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals= fetch_yahoo_data(ticker, interval)
         print(f"fetched for {interval} ...")
         # Convert arrow_signals to a DataFrame for easier analysis
-        ripster_df = pd.DataFrame(arrow_signals)
+        ripster_df = pd.DataFrame(vwap_signals)
         df = pd.DataFrame(candlestick_data)
 
         # Get the last row of the DataFrame
@@ -63,10 +63,9 @@ async def fetch_and_analyze_data(manager: ConnectionManager, interval="15m"):
 
 async def back_test_the_stock(stockname="NVDA",interval= "15m"):
     db = get_db()
-    candlestick_data, ema_data, macd_data, vwap_data, arrow_signals, ttm_waves_data = fetch_yahoo_data(stockname, interval)
-    print(arrow_signals)
+    candlestick_data, macd_data, vwap_signals, ttm_waves_data, ttm_squeeze_signals= fetch_yahoo_data(stockname, interval)
     print(f"fetched for back test interval {interval} ...")
-    df = pd.DataFrame(arrow_signals)
+    df = pd.DataFrame(vwap_signals)
     for index, row in df.iterrows():
         signal_time = datetime.fromtimestamp(row['time'], tz=pytz.UTC)
         price = row['price']

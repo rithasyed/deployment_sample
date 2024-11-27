@@ -1,12 +1,9 @@
 import time
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import asynccontextmanager
+from utils.seeding import seed_database
 from services.analyze_data import fetch_and_analyze_data
 from websocket import ConnectionManager
-import yfinance as yf # type: ignore
-import pandas as pd
-import pandas_ta as ta # type: ignore
-from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlencode
 from api.router import router
@@ -14,7 +11,6 @@ import asyncio
 import uvloop  # Import uvloop
 from apscheduler.schedulers.asyncio import AsyncIOScheduler #type: ignore
 from apscheduler.jobstores.memory import MemoryJobStore #type: ignore
-from models import symbols, tradeBook
 from database import engine, Base
 
 # Set UVLoop as the event loop policy BEFORE any other imports or operations
@@ -35,6 +31,7 @@ scheduler = AsyncIOScheduler(jobstores=jobstores, timezone='Asia/Kolkata')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    seed_database()
     scheduler.start()
     yield
 
@@ -72,6 +69,12 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@scheduler.scheduled_job('interval', seconds=60 * 15)
+async def scheduled_job_2():
+    result = await fetch_and_analyze_data(manager,"15m")
+    print("res",result)
+    await manager.broadcast(result)
 
 @app.get("/health")
 def health():

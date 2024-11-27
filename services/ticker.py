@@ -56,9 +56,9 @@ def calculate_ripster_signals(data, do_arrows=True, slope_degree=45, volumeLengt
 
             upperBand_vwap_cross_green = upperVwapCrossYellow == 1 and data['Close'].iloc[i] < data['Open'].iloc[i] and data['MACDh_12_26_9'].iloc[i] < data['MACDh_12_26_9'].iloc[i-1]
             if(upperBand_vwap_cross_green):
-                data.loc[data.index[i], 'upperVwapCrossYellow'] = 1
+                data.loc[data.index[i], 'upperVwapCrossYellow'] = bool(1)
             else:
-                data.loc[data.index[i], 'upperVwapCrossYellow'] = 0
+                data.loc[data.index[i], 'upperVwapCrossYellow'] = bool(0)
 
             if data['upperVwapCrossYellow'].iloc[i] == 1:
                 resetUpper = 0
@@ -74,9 +74,9 @@ def calculate_ripster_signals(data, do_arrows=True, slope_degree=45, volumeLengt
             
             lowerBand_vwap_cross_green = lowerVwapCrossYellow == 1 and data['Close'].iloc[i] > data['Open'].iloc[i] and data['MACDh_12_26_9'].iloc[i] > data['MACDh_12_26_9'].iloc[i-1]
             if(lowerBand_vwap_cross_green):
-                data.loc[data.index[i], 'lowerVwapCrossYellow'] = 1
+                data.loc[data.index[i], 'lowerVwapCrossYellow'] = bool(1)
             else:
-                data.loc[data.index[i], 'lowerVwapCrossYellow'] = 0
+                data.loc[data.index[i], 'lowerVwapCrossYellow'] = bool(0)
 
             if data['lowerVwapCrossYellow'].iloc[i] == 1:
                 resetLower = 0
@@ -221,12 +221,12 @@ def calculate_ttm_squeeze_signals(data, plot_magenta=True, plot_yellow=True,offs
         sqz_on = mid_sqz | high_sqz
         return sqz_on.astype(int)
 
-    data['price1'] = data['Close'].resample('1T').last()
-    data['price2'] = data['Close'].resample('5T').last()
-    data['price3'] = data['Close'].resample('15T').last()
-    data['price4'] = data['Close'].resample('60T').last()
+    data['price1'] = data['Close'].resample('1min').last()
+    data['price2'] = data['Close'].resample('5min').last()
+    data['price3'] = data['Close'].resample('15min').last()
+    data['price4'] = data['Close'].resample('60min').last()
     
-    data = data.fillna(method='ffill')
+    data = data.ffill()
 
     data['sqz1'] = ttm_squeeze(data['price1'])
     data['sqz2'] = ttm_squeeze(data['price2'])
@@ -314,7 +314,9 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
     
     data['Volume_MA'] = data['Volume'].rolling(window=20).mean()
 
-    data['VWAP'] = ta.vwap(data['High'], data['Low'], data['Close'], data['Volume'])
+    data_temp = data.copy()  # Create a temporary copy for VWAP calculation
+    data_temp.index = data_temp.index.tz_localize(None)  # Remove timezone info
+    data['VWAP'] = ta.vwap(data_temp['High'], data_temp['Low'], data_temp['Close'], data_temp['Volume'])
 
     # Calculate VWAP bands
     data['VWAP_Std'] = data['VWAP'].rolling(window=vwap_period).std()
@@ -374,7 +376,8 @@ def fetch_yahoo_data(ticker, interval, ema_period=20, macd_fast=12, macd_slow=26
         'yellow_signal_up': bool(row.lowerVwapCrossYellow),
         'yellow_signal_down': bool(row.upperVwapCrossYellow), 
         'rsi_exit_up': bool(row.lowerRsiOversold), 
-        'rsi_exit_down': bool(row.upperRsiOverbought)    
+        'rsi_exit_down': bool(row.upperRsiOverbought),
+        'price': float(row.Close),    
             
     }
     for i, row in enumerate(data.itertuples())
