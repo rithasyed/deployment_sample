@@ -37,6 +37,7 @@ def create_trade(db: Session, trade_data: dict):
         quantity=trade_data['quantity'],
         capital=trade_data['capital'],
         tradetype=trade_data['tradetype'],
+        indicator=trade_data['indicator'],
         back_testing=trade_data['back_testing'],
         interval=trade_data['interval'],
     )
@@ -51,6 +52,7 @@ def update_trade(db: Session, trade, trade_data: dict):
     trade.exit_time = trade_data['exit_time']
     trade.pnl = trade_data['pnl']
     trade.ROI = trade_data['ROI']
+    trade.profit = trade_data['profit']
     trade.remarks = trade_data['remarks']
     trade.status = trade_data['status']
     db.commit()

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from services.scores import calculate_ticker_scores_multiframe
 from services.ticker import fetch_yahoo_data
 import pandas as pd
 from fastapi import HTTPException
@@ -11,6 +12,8 @@ from database import SessionLocal
 from services.tradeBook_crud import get_trades
 from schemas.tradeBook_schema import backTestCreate
 from services.analyze_data import back_test_the_stock
+# Import the function from the original script
+from services.dashboard import get_stock_data
 
 router = APIRouter()
 
@@ -42,7 +45,7 @@ def get_data(ticker: str, interval: str, ema_period: int, vwap_period: int, vwap
 @router.post('/back-test')
 async def analyze_the_stock(request: backTestCreate):
     try:
-        await back_test_the_stock(request.stockname, request.interval)
+        await back_test_the_stock(request.stockname, request.interval, request.quantity, request.indicator)
         return HTTPException(status_code=200, detail=f"Back test done...")
     except Exception as e:
         print(e)
@@ -51,3 +54,19 @@ async def analyze_the_stock(request: backTestCreate):
 @router.get("/trades")
 def fetch_trades(db: Session = Depends(get_db)):
     return get_trades(db)
+
+@router.get("/ticker-scores")
+async def get_ticker_scores():
+    scores_df = calculate_ticker_scores_multiframe()
+    return scores_df.to_dict(orient='records')
+
+@router.get("/stock-data/{ticker}")
+def get_stock_info(ticker: str):
+    try:
+        stock_data = get_stock_data(ticker)
+        return stock_data
+    except Exception as e:
+        print(f"Error in get_stock_info: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+    

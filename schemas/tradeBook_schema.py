@@ -27,3 +27,6 @@ class TradebookUpdate(BaseModel):
 class backTestCreate(BaseModel):
     stockname: str
     interval: str
+    quantity: int
+    indicator: str
+    
