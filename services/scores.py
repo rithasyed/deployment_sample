@@ -6,11 +6,12 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def calculate_ticker_scores_multiframe(tickers=[
-    'QQQ', 'SPY', 'IWM', 'DIA', 'RSP', 'BTC-USD', 'RTY=F', 'YM=F', 'GC=F', 'NQ=F', 'ES',
-    'XLK', 'SMH', 'XLF', 'XLV', 'XLE', 'XLC', 'IYR', 'ARKK', 'XLU', 'XLB', 'IYT', 'XLI', 'IBB', 'GBTC',
-    'AMZN', 'PLTR', 'NFLX', 'META', 'TSLA', 'WMT', 'CRM', 'ORCL', 'AAPL', 'C', 'MSFT', 'PTON', 'JPM', 'UAL', 'GOOG', 'LMND', 'NVDA', 'WFC', 'OKTA', 'SMCI', 'AMD', 'INTC'
-],
-intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
+            'QQQ', 'SPY', 'IWM', 'DIA', 'RSP', 'BTC-USD', 'RTY=F', 'YM=F', 'GC=F', 'NQ=F', 'ES',
+            'XLK', 'SMH', 'XLF', 'XLV', 'XLE', 'XLC', 'IYR', 'ARKK', 'XLU', 'XLB', 'IYT', 'XLI', 'IBB', 'GBTC',
+            'AMZN', 'PLTR', 'NFLX', 'META', 'TSLA', 'WMT', 'CRM', 'ORCL', 'AAPL', 'C', 'MSFT', 'PTON', 'JPM', 'UAL', 'GOOG', 'LMND', 'NVDA', 'WFC', 'OKTA', 'SMCI', 'AMD', 'INTC'
+        ],
+        intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
+        
     def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4):
 
         if len(data) < 50:

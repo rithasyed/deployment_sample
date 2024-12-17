@@ -8,13 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlencode
 from api.router import router
 import asyncio
-import uvloop  # Import uvloop
+# import uvloop  # Import uvloop
 from apscheduler.schedulers.asyncio import AsyncIOScheduler #type: ignore
 from apscheduler.jobstores.memory import MemoryJobStore #type: ignore
 from database import engine, Base
 
 # Set UVLoop as the event loop policy BEFORE any other imports or operations
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+# asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 Base.metadata.create_all(bind=engine)
 manager = ConnectionManager()
@@ -87,4 +87,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=5001,
         reload=True,
+        timeout_keep_alive=120
     )
