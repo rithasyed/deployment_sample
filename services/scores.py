@@ -3,15 +3,15 @@ import pandas as pd
 import yfinance as yf
 import pandas_ta as ta
 import warnings
+from functools import lru_cache
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def calculate_ticker_scores_multiframe(tickers=[
-            'QQQ', 'SPY', 'IWM', 'DIA', 'RSP', 'BTC-USD', 'RTY=F', 'YM=F', 'GC=F', 'NQ=F', 'ES',
-            'XLK', 'SMH', 'XLF', 'XLV', 'XLE', 'XLC', 'IYR', 'ARKK', 'XLU', 'XLB', 'IYT', 'XLI', 'IBB', 'GBTC',
-            'AMZN', 'PLTR', 'NFLX', 'META', 'TSLA', 'WMT', 'CRM', 'ORCL', 'AAPL', 'C', 'MSFT', 'PTON', 'JPM', 'UAL', 'GOOG', 'LMND', 'NVDA', 'WFC', 'OKTA', 'SMCI', 'AMD', 'INTC'
-        ],
-        intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
-        
+    'QQQ', 'SPY', 'IWM', 'DIA', 'RSP', 'BTC-USD', 'RTY=F', 'YM=F', 'GC=F', 'NQ=F', 'ES',
+    'XLK', 'SMH', 'XLF', 'XLV', 'XLE', 'XLC', 'IYR', 'ARKK', 'XLU', 'XLB', 'IYT', 'XLI', 'IBB', 'GBTC',
+    'AMZN', 'PLTR', 'NFLX', 'META', 'TSLA', 'WMT', 'CRM', 'ORCL', 'AAPL', 'C', 'MSFT', 'PTON', 'JPM', 'UAL', 'GOOG', 'LMND', 'NVDA', 'WFC', 'OKTA', 'SMCI', 'AMD', 'INTC'
+],
+intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
     def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4):
 
         if len(data) < 50:
@@ -60,8 +60,7 @@ def calculate_ticker_scores_multiframe(tickers=[
             data['sn'] = ((data['ema5'] < data['ema8']) & 
                         (data['ema8'] < data['ema21']) & 
                         (data['ema21'] < data['ema34']))
-            
-            # Scoring Logic
+
             bull_conditions = [
                 data['md'] > 0,
                 data['is_sloping_higher_50'],
@@ -110,6 +109,7 @@ def calculate_ticker_scores_multiframe(tickers=[
             return 0
 
     def get_long_rank(long_score):
+
         if long_score == 120:
             return "A++"
         elif long_score == -120:
@@ -128,6 +128,7 @@ def calculate_ticker_scores_multiframe(tickers=[
             return "F"
 
     def get_short_rank(short_score):
+
         if short_score == 60:
             return "A++"
         elif short_score == -60:
@@ -146,22 +147,18 @@ def calculate_ticker_scores_multiframe(tickers=[
             return "F"
         
     def determine_trend(long_rank, short_rank):
-        # Define the rank order
+
         rank_order = ["F", "D", "C", "B", "A", "A+", "A++", "B--"]
         
-        # Get the index of long and short ranks
         long_index = rank_order.index(long_rank) if long_rank in rank_order else -1
         short_index = rank_order.index(short_rank) if short_rank in rank_order else -1
         
-        # Determine trend based on rank comparison
-        if  short_index > long_index:
+        if short_index > long_index:
             return "Uptrend"
         elif short_index < long_index:
             return "Downtrend"
         else:
             return ""  
-
-    results = []
 
     ticker_names = {
         'QQQ': 'INVSC QQQ TRUST SRS 1 ETF',
@@ -213,76 +210,107 @@ def calculate_ticker_scores_multiframe(tickers=[
         'INTC': 'INTEL CORP'
     }
 
+    results = []
 
-    # Modify the download and processing logic
-    for ticker in tickers:
-        ticker_result = {
-            'TICKER SYMBOL': ticker,
-            'TICKER NAME': ticker_names.get(ticker, ticker)
-        }
+    print(f"Starting analysis for {len(tickers)} tickers across {len(intervals)} intervals")
+
+    for interval in intervals:
+        end_date = datetime.now()
+
+        if interval in ['1m', '5m']:
+            start_date = end_date - timedelta(days=7)       
+        elif interval in ['15m', '30m', '60m', '90m']:
+            start_date = end_date - timedelta(days=60)
+        elif interval in ['1d', '5d']:
+            start_date = end_date - timedelta(days=365*5)
+        elif interval in ['1wk', '1mo']:
+            start_date = end_date - timedelta(days=365*5)
         
-        for interval in intervals:
-            end_date = datetime.now()
-            
-            # Adjust start date based on interval
-            if interval in ['1m', '5m']:
-                start_date = end_date - timedelta(days=7)       
-            elif interval in ['15m', '30m', '60m', '90m']:
-                start_date = end_date - timedelta(days=60)
-            elif interval in ['1d', '5d']:
-                start_date = end_date - timedelta(days=365*5)
-            elif interval in ['1wk', '1mo']:
-                start_date = end_date - timedelta(days=365*5)
-            
-            try:
-                # Attempt to download data
-                data = yf.download(ticker, start=start_date, end=end_date, interval=interval)
-                
-                # Check if data is empty
-                if data.empty:
-                    print(f"No data available for {ticker} at {interval}")
-                    continue
-                
-                # Calculate score
-                score = calculate_ticker_score_from_data(data)
-                
-                # Store score if valid
-                if score is not None:
-                    if interval == '1wk':
-                        ticker_result['W'] = score
-                    elif interval == '1d':
-                        ticker_result['D'] = score
-                    elif interval == '5d':
-                        ticker_result['5D'] = score
-                    elif interval == '1h':
-                        ticker_result['1H'] = score
-                    elif interval == '90m':
-                        ticker_result['90M'] = score
-                    elif interval == '30m':
-                        ticker_result['30M'] = score
-                    elif interval == '15m':
-                        ticker_result['15M'] = score
-            
-            except Exception as e:
-                print(f"Error processing {ticker} at {interval}: {e}")
+        try:
+            print(f"Downloading data for interval: {interval}")
+            multi_data = yf.download(tickers, start=start_date, end=end_date, interval=interval)
 
-        # Calculate long and short scores
+            print(f"Downloaded data shape: {multi_data.shape}")
+            print(f"Columns: {multi_data.columns}")
+
+            if multi_data.empty:
+                print(f"No data downloaded for interval {interval}")
+                continue
+
+            for ticker in tickers:
+                try:
+                    if isinstance(multi_data.columns, pd.MultiIndex):
+
+                        ticker_data = pd.DataFrame({
+                            'Close': multi_data[('Close', ticker)],
+                            'High': multi_data[('High', ticker)],
+                            'Low': multi_data[('Low', ticker)],
+                            'Open': multi_data[('Open', ticker)],
+                            'Volume': multi_data[('Volume', ticker)]
+                        })
+                    else:
+                        ticker_data = multi_data[ticker] if ticker in multi_data.columns else pd.DataFrame()
+
+                    ticker_data = ticker_data.rename(columns=str.title)
+
+                    if ticker_data.empty:
+                        print(f"No data for {ticker} in {interval}")
+                        continue
+
+                    score = calculate_ticker_score_from_data(ticker_data)
+
+                    ticker_result = next((r for r in results if r['TICKER SYMBOL'] == ticker), None)
+                    if ticker_result is None:
+                        ticker_result = {
+                            'TICKER SYMBOL': ticker,
+                            'TICKER NAME': ticker_names.get(ticker, ticker)
+                        }
+                        results.append(ticker_result)
+
+                    if score is not None:
+                        if interval == '1wk':
+                            ticker_result['W'] = score
+                        elif interval == '1d':
+                            ticker_result['D'] = score
+                        elif interval == '5d':
+                            ticker_result['5D'] = score
+                        elif interval == '1h':
+                            ticker_result['1H'] = score
+                        elif interval == '90m':
+                            ticker_result['90M'] = score
+                        elif interval == '30m':
+                            ticker_result['30M'] = score
+                        elif interval == '15m':
+                            ticker_result['15M'] = score
+
+                except Exception as ticker_error:
+                    print(f"Error processing {ticker} in {interval}: {ticker_error}")
+
+        except Exception as interval_error:
+            print(f"Error processing interval {interval}: {interval_error}")
+
+    print(f"Total results processed: {len(results)}")
+
+    for ticker_result in results:
+
         long_score_columns = ['W', 'D', '5D', '1H', '90M', '30M', '15M']
-        ticker_result['LONG SCORE'] = sum(ticker_result.get(col, 0) for col in long_score_columns if col in ticker_result)
+        ticker_result['LONG SCORE'] = sum(ticker_result.get(col, 0) for col in long_score_columns)
 
         short_score_columns = ['15M', '30M', '90M', '1H']
-        ticker_result['SHORT SCORE'] = sum(ticker_result.get(col, 0) for col in short_score_columns if col in ticker_result)
+        ticker_result['SHORT SCORE'] = sum(ticker_result.get(col, 0) for col in short_score_columns)
 
         ticker_result['LONG RANK'] = get_long_rank(ticker_result['LONG SCORE'])
         ticker_result['SHORT RANK'] = get_short_rank(ticker_result['SHORT SCORE'])
-
         ticker_result['TREND'] = determine_trend(ticker_result['LONG RANK'], ticker_result['SHORT RANK'])
 
-        results.append(ticker_result)
+    if not results:
+        print("No results processed. Check API connectivity and data retrieval.")
+        return pd.DataFrame() 
 
     results_df = pd.DataFrame(results)
 
-    columns_order = ['TICKER SYMBOL', 'TICKER NAME', 'W', 'D', '5D', '1H', '90M', '30M', '15M', 'LONG SCORE', 'SHORT SCORE', 'LONG RANK', 'SHORT RANK','TREND']
-    results_df = results_df[columns_order]
+    columns_order = ['TICKER SYMBOL', 'TICKER NAME', 'W', 'D', '5D', '1H', '90M', '30M', '15M', 'LONG SCORE', 'SHORT SCORE', 'LONG RANK', 'SHORT RANK', 'TREND']
+
+    results_df = results_df.reindex(columns=columns_order, fill_value=0)
     
     return results_df
