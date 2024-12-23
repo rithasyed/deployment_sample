@@ -70,11 +70,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-@scheduler.scheduled_job('interval', seconds=60 * 15)
-async def scheduled_job_2():
-    result = await fetch_and_analyze_data(manager,"15m")
-    print("res",result)
-    await manager.broadcast(result)
+# @scheduler.scheduled_job('interval', seconds=60 * 15)
+# async def scheduled_job_2():
+#     result = await fetch_and_analyze_data(manager,"15m")
+#     print("res",result)
+#     await manager.broadcast(result)
 
 @app.get("/health")
 def health():
