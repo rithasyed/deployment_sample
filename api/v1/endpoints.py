@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from services.ticker_score_crud import create_ticker_score, delete_old_ticker_scores, get_ticker_scores
 from services.scores import calculate_ticker_scores_multiframe
 from services.ticker import fetch_yahoo_data
 import pandas as pd
@@ -55,11 +56,6 @@ async def analyze_the_stock(request: backTestCreate):
 def fetch_trades(db: Session = Depends(get_db)):
     return get_trades(db)
 
-@router.get("/ticker-scores")
-async def get_ticker_scores():
-    scores_df = calculate_ticker_scores_multiframe()
-    return scores_df.to_dict(orient='records')
-
 @router.get("/stock-data/{ticker}")
 def get_stock_info(ticker: str):
     try:
@@ -67,6 +63,51 @@ def get_stock_info(ticker: str):
         return stock_data
     except Exception as e:
         print(f"Error in get_stock_info: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+@router.get("/ticker-scores")
+async def fetch_ticker_scores(
+    db: Session = Depends(get_db), 
+    store_scores: bool = True 
+):
+    try:
+        scores_df, results = calculate_ticker_scores_multiframe()
+ 
+        if store_scores:
+            stored_scores = []
+
+            for result in results:
+                stored_score = create_ticker_score(db, result)
+                stored_scores.append(stored_score)
+
+                ticker_idx = scores_df[scores_df['ticker_symbol'] == result['ticker_symbol']].index[0]
+                scores_df.at[ticker_idx, 'score_change_trend'] = stored_score.score_change_trend
+        
+        return scores_df.to_dict(orient='records')
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@router.get("/stored-ticker-scores")
+def retrieve_stored_ticker_scores(
+    db: Session = Depends(get_db),
+    ticker_symbol: str = None
+):
+    try:
+        stored_scores = get_ticker_scores(db, ticker_symbol)
+        return stored_scores
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@router.delete("/clean-old-ticker-scores")
+def clean_old_ticker_scores(
+    db: Session = Depends(get_db),
+    days_to_keep: int = 3
+):
+    try:
+        delete_old_ticker_scores(db, days_to_keep)
+        return {"message": f"Deleted ticker scores older than {days_to_keep} days"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
     

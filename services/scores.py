@@ -7,12 +7,19 @@ from functools import lru_cache
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def calculate_ticker_scores_multiframe(tickers=[
-    'QQQ', 'SPY', 'IWM', 'DIA', 'RSP', 'BTC-USD', 'RTY=F', 'YM=F', 'GC=F', 'NQ=F', 'ES',
-    'XLK', 'SMH', 'XLF', 'XLV', 'XLE', 'XLC', 'IYR', 'ARKK', 'XLU', 'XLB', 'IYT', 'XLI', 'IBB', 'GBTC',
-    'AMZN', 'PLTR', 'NFLX', 'META', 'TSLA', 'WMT', 'CRM', 'ORCL', 'AAPL', 'C', 'MSFT', 'PTON', 'JPM', 'UAL', 'GOOG', 'LMND', 'NVDA', 'WFC', 'OKTA', 'SMCI', 'AMD', 'INTC'
+    'ABBV', 'AI', 'AMAT', 'AMD', 'AMZN', 'ARKK', 'ASTS', 'AAPL', 'AVGO', 'BA', 'BABA', 'BAC', 'BIDU',
+    'BKNG', 'BTC-USD', 'CAT', 'C', 'CMG', 'COST', 'CRSP', 'CVX', 'DDOG', 'DE', 'DIA', 'DOCU',
+    'DUK', 'EOG', 'ES', 'FSLR', 'GBTC', 'GC=F', 'GE', 'GLD', 'GOOG', 'GOOGL', 'GS', 'GTLB', 'HD', 'IBM',
+    'IBB', 'IWM', 'IYR', 'IYT', 'JNJ', 'JPM', 'KO', 'LLY', 'LMND', 'LMT', 'LOW', 'LRCX', 'LULU', 'MCD',
+    'META', 'MP', 'MRK', 'MSFT', 'MU', 'NEE', 'NET', 'NFLX', 'NKE', 'NQ=F', 'NVDA', 'OKTA', 'OUST',
+    'ORCL', 'PEP', 'PG', 'PLTR', 'PTON', 'PSNL', 'QCOM', 'QQQ', 'RBRK', 'RIVN', 'ROKU', 'RSP', 'RTX',
+    'RTY=F', 'SHOP', 'SLV', 'SMCI', 'SMH', 'SO', 'SOFI', 'SQ', 'SU', 'SBUX', 'TGT', 'TJX', 'TSM',
+    'TSLA', 'UNH', 'UNP', 'UPS', 'VLO', 'WFC', 'WMT', 'XLB', 'XLC', 'XLE', 'XLK', 'XLI', 'XLU', 'XLV',
+    'XOM', 'YM=F', 'Z', 'ZM', 'SPY','XLF'
 ],
 intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
-    def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4):
+    
+    def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4, bb_num_dev=2.0, bb_length=20, kc_factor=1.75):
 
         if len(data) < 50:
             return None
@@ -29,6 +36,21 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
                     return func(series, **kwargs)
                 except Exception:
                     return pd.Series([0] * len(series), index=series.index)
+            
+            def calculate_squeeze(close, high, low, bb_num_dev=2.0, bb_length=20, kc_factor=1.75):
+
+                bb = ta.bbands(close, length=bb_length, std=bb_num_dev)
+
+                tr = ta.true_range(high, low, close)
+                atr = tr.rolling(window=bb_length).mean()
+
+                kc_middle = ta.ema(close, length=bb_length)
+                kc_upper = kc_middle + (kc_factor * atr)
+                kc_lower = kc_middle - (kc_factor * atr)
+
+                squeeze = (bb['BBU_20_2.0'] - bb['BBL_20_2.0']) < (kc_upper - kc_lower)
+                
+                return squeeze.iloc[-1] if not squeeze.empty else False
             
             data['md'] = safe_macd(data['Close'])
             data['sma200'] = safe_ta_calc(ta.sma, data['Close'], length=min(200, len(data)))
@@ -102,11 +124,24 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
             
             data['score'] = data['bull_score'] - data['bear_score']
 
-            return int(data['score'].iloc[-1]) if not pd.isna(data['score'].iloc[-1]) else 0
+            # Add squeeze detection
+            squeeze = calculate_squeeze(
+                data['Close'], 
+                data['High'], 
+                data['Low'], 
+                bb_num_dev=bb_num_dev, 
+                bb_length=bb_length, 
+                kc_factor=kc_factor
+            )
+
+            # Calculate final score and squeeze status
+            score = int(data['score'].iloc[-1]) if not pd.isna(data['score'].iloc[-1]) else 0
+            
+            return score, squeeze
         
         except Exception as e:
             print(f"Error in score calculation: {e}")
-            return 0
+            return 0, False
 
     def get_long_rank(long_score):
 
@@ -161,54 +196,123 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
             return ""  
 
     ticker_names = {
-        'QQQ': 'INVSC QQQ TRUST SRS 1 ETF',
-        'SPY': 'SPDR S&P 500 ETF',
-        'IWM': 'ISHARES RUSSELL 2000 ETF',
-        'DIA': 'SPDR DOW JONES INDUSTRIAL AVRG ETF',
-        'RSP': 'INVSC S P 500 EQUAL WEIGHT ETF IV',
-        'BTC-USD': 'Bitcoin Futures',
-        'RTY=F': 'E-mini Russell 2000 Index Futures',
-        'YM=F': 'Mini Dow Jones Industrial Average Futures,ETH',
-        'GC=F': 'Gold Futures, ETH',
-        'NQ=F': 'E-mini Nasdaq 100 Index Futures,ETH',
-        'ES': 'E-mini S&P 500 Futures,ETH',
-        'XLK': 'TECHNOLOGY SELECT SECTOR SPDR ETF IV',
-        'SMH': 'VANECK SEMICONDUCTOR ETF',
-        'XLF': 'SELECT STR FINANCIAL SELECT SPDR ETF',
-        'XLV': 'SELECT SECTOR HEALTH CARE SPDR ETF',
-        'XLE': 'ENERGY SELECT SECTOR SPDR ETF',
-        'XLC': 'COMMUNICAT SVS SLCT SEC SPDR ETF',
-        'IYR':'ISHARES US REAL ESTATE ETF IV',
-        'ARKK':'ARK INNOVATION ETF',
-        'XLU': 'SELECT SECTOR UTI SELECT SPDR ETF',
-        'XLB': 'SPDR FUND MATERIALS SELECT SECTR ETF',
-        'IYT': 'ISHARES US TRANSPORTATION ETF',
-        'XLI': 'SELECT SECTOR INDUSTRIAL SPDR ETF',
-        'IBB': 'iShares Nasdaq Biotechnology Index Fund',
-        'GBTC': 'GRAYSCALE BITCOIN TR BTC',
-        'AMZN': 'Amazon.com Inc',
-        'PLTR': 'PALANTIR TECHNOLOGIE A',
-        'NFLX': 'NETFLIX INC',
-        'META': 'META PLATFORMS INC A',
-        'TSLA': 'TESLA INC',
-        'WMT': 'WALMART INC',
-        'CRM': 'Salesforce Inc',
-        'ORCL': 'ORACLE CORP',
-        'AAPL': 'APPLE INC',
-        'C': 'Citigroup Inc',
-        'MSFT': 'Microsoft Corp',
-        'PTON': 'PELOTON INTERACTIVE',
-        'JPM': 'JPMORGAN CHASE & CO',
-        'UAL': 'United Airlines Hldg',
-        'GOOG': 'ALPHABET INC C',
-        'LMND': 'LEMONADE INC',
-        'NVDA': 'NVIDIA CORP',
-        'WFC': 'WELLS FARGO & CO',
-        'OKTA': 'OKTA INC A',
-        'SMCI': 'SUPER MICRO COMPUTER',
-        'AMD': 'Advanced Micro Devic',
-        'INTC': 'INTEL CORP'
-    }
+    'QQQ': 'INVSC QQQ TRUST SRS 1 ETF',
+    'SPY': 'SPDR S&P 500 ETF',
+    'IWM': 'ISHARES RUSSELL 2000 ETF',
+    'DIA': 'SPDR DOW JONES INDUSTRIAL AVRG ETF',
+    'RSP': 'INVSC S P 500 EQUAL WEIGHT ETF IV',
+    'BTC-USD': 'Bitcoin Futures',
+    'RTY=F': 'E-mini Russell 2000 Index Futures',
+    'YM=F': 'Mini Dow Jones Industrial Average Futures,ETH',
+    'GC=F': 'Gold Futures, ETH',
+    'NQ=F': 'E-mini Nasdaq 100 Index Futures,ETH',
+    'ES': 'E-mini S&P 500 Futures,ETH',
+    'XLK': 'TECHNOLOGY SELECT SECTOR SPDR ETF IV',
+    'SMH': 'VANECK SEMICONDUCTOR ETF',
+    'XLF': 'SELECT STR FINANCIAL SELECT SPDR ETF',
+    'XLV': 'SELECT SECTOR HEALTH CARE SPDR ETF',
+    'XLE': 'ENERGY SELECT SECTOR SPDR ETF',
+    'XLC': 'COMMUNICAT SVS SLCT SEC SPDR ETF',
+    'IYR': 'ISHARES US REAL ESTATE ETF IV',
+    'ARKK': 'ARK INNOVATION ETF',
+    'XLU': 'SELECT SECTOR UTI SELECT SPDR ETF',
+    'XLB': 'SPDR FUND MATERIALS SELECT SECTR ETF',
+    'IYT': 'ISHARES US TRANSPORTATION ETF',
+    'XLI': 'SELECT SECTOR INDUSTRIAL SPDR ETF',
+    'IBB': 'iShares Nasdaq Biotechnology Index Fund',
+    'GBTC': 'GRAYSCALE BITCOIN TR BTC',
+    'AMZN': 'Amazon.com Inc',
+    'PLTR': 'PALANTIR TECHNOLOGIE A',
+    'NFLX': 'NETFLIX INC',
+    'META': 'META PLATFORMS INC A',
+    'TSLA': 'TESLA INC',
+    'WMT': 'WALMART INC',
+    'CRM': 'Salesforce Inc',
+    'ORCL': 'ORACLE CORP',
+    'AAPL': 'APPLE INC',
+    'C': 'Citigroup Inc',
+    'MSFT': 'Microsoft Corp',
+    'PTON': 'PELOTON INTERACTIVE',
+    'JPM': 'JPMORGAN CHASE & CO',
+    'UAL': 'United Airlines Hldg',
+    'GOOG': 'ALPHABET INC C',
+    'LMND': 'LEMONADE INC',
+    'NVDA': 'NVIDIA CORP',
+    'WFC': 'WELLS FARGO & CO',
+    'OKTA': 'OKTA INC A',
+    'SMCI': 'SUPER MICRO COMPUTER',
+    'AMD': 'Advanced Micro Devic',
+    'INTC': 'INTEL CORP',
+    'ABBV': 'ABBVIE INC',
+    'BABA': 'ALIBABA GROUP HLDG L ADR',
+    'GOOGL': 'ALPHABET INC A',
+    'AVGO': 'BROADCOM INC',
+    'BA': 'BOEING CO',
+    'BKNG': 'BOOKING HLDGS INC',
+    'SQ': 'Block Inc A',
+    'CAT': 'CATERPILLAR INC',
+    'CVX': 'CHEVRON CORP NEW',
+    'CMG': 'CHIPOTLE MEXICAN GRI',
+    'NET': 'CLOUDFLARE INC A',
+    'CRSP': 'CRISPR THERAPEUTICS',
+    'DDOG': 'DATADOG INC A',
+    'DE': 'DEERE & CO',
+    'TSM': 'TAIWAN SEMICONDUCTOR ADR',
+    'DUK': 'DUKE ENERGY CORP NEW',
+    'LLY': 'ELi Lilly and Co',
+    'EOG': 'EOG RES INC',
+    'XOM': 'EXXON MOBIL CORP',
+    'FSLR': 'FIRST SOLAR INC',
+    'GE': 'GE Aerospace',
+    'GTLB': 'GITLAB INC A',
+    'GS': 'GOLDMAN SACHS GROUP',
+    'SOFI': 'SOFI TECHNOLOGIES IN',
+    'HD': 'HOME DEPOT INC',
+    'IBM': 'IBM CORP',
+    'RIVN': 'RIVIAN AUTOMOTIVE IN A',
+    'RTX': 'RTX CORP',
+    'RBRK': 'RUBRIK INC A',
+    'AI': 'C3 AI INC A',
+    'MU': 'MICRON TECHNOLOGY IN',
+    'MRK': 'Merck & Co. Inc.',
+    'NEE': 'NEXTERA ENERGY INC',
+    'NKE': 'NIKE INC B',
+    'OUST': 'OUSTER INC A',
+    'PEP': 'PEPSICO INC',
+    'PSNL': 'PERSONALIS INC',
+    'PG': 'PROCTER & GAMBLE CO',
+    'QCOM': 'QUALCOMM INC',
+    'ROKU': 'ROKU INC A',
+    'SHOP': 'SHOPIFY INC A',
+    'SO': 'SOUTHERN CO',
+    'SBUX': 'STARBUCKS CORP',
+    'SU': 'SUNCOR ENERGY INC NE',
+    'TGT': 'TARGET CORP',
+    'TJX': 'TJX COS INC NEW',
+    'KO': 'The Coca-Cola Co',
+    'UNP': 'UNION PAC CORP',
+    'UPS': 'UNITED PARCEL SVC IN B',
+    'UNH': 'UNITEDHEALTH GROUP I',
+    'VLO': 'VALERO ENERGY CORP N',
+    'COST': 'COSTCO WHSL CORP NEW',
+    'Z': 'ZILLOW GROUP INC Z',
+    'ZM': 'ZOOM COMMUNICATIONS A',
+    'AMAT': 'APPLIED MATLS INC',
+    'ASTS': 'AST SPACEMOBILE INC A',
+    'BAC': 'BANK OF AMERICA CORP',
+    'BIDU': 'BAIDU INC A ADR',
+    'BRK/B': 'BERKSHIRE HATHAWAY B',
+    'DOCU': 'DOCUSIGN INC',
+    'JNJ': 'JOHNSON & JOHNSON',
+    'LMT': 'LOCKHEED MARTIN CORP',
+    'LOW': 'LOWES COS INC',
+    'LRCX': 'LAM RESH CORP Equity',
+    'LULU': 'LULULEMON ATHLETICA',
+    'MCD': 'MCDONALDS CORP',
+    'MP': 'MP MATLS CORP A',
+    'SLV': 'ISHARES SILVER TRUST ETF IV',
+    'SPX': 'S & P 500 INDEX'
+}
 
     results = []
 
@@ -240,7 +344,6 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
             for ticker in tickers:
                 try:
                     if isinstance(multi_data.columns, pd.MultiIndex):
-
                         ticker_data = pd.DataFrame({
                             'Close': multi_data[('Close', ticker)],
                             'High': multi_data[('High', ticker)],
@@ -257,31 +360,38 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
                         print(f"No data for {ticker} in {interval}")
                         continue
 
-                    score = calculate_ticker_score_from_data(ticker_data)
+                    score, squeeze = calculate_ticker_score_from_data(ticker_data)
 
-                    ticker_result = next((r for r in results if r['TICKER SYMBOL'] == ticker), None)
+                    ticker_result = next((r for r in results if r['ticker_symbol'] == ticker), None)
                     if ticker_result is None:
                         ticker_result = {
-                            'TICKER SYMBOL': ticker,
-                            'TICKER NAME': ticker_names.get(ticker, ticker)
+                            'ticker_symbol': ticker,
+                            'ticker_name': ticker_names.get(ticker, ticker)
                         }
                         results.append(ticker_result)
 
                     if score is not None:
                         if interval == '1wk':
-                            ticker_result['W'] = score
+                            ticker_result['w_score'] = score
+                            ticker_result['w_squeeze'] = squeeze
                         elif interval == '1d':
-                            ticker_result['D'] = score
+                            ticker_result['d_score'] = score
+                            ticker_result['d_squeeze'] = squeeze
                         elif interval == '5d':
-                            ticker_result['5D'] = score
+                            ticker_result['five_d_score'] = score
+                            ticker_result['five_d_squeeze'] = squeeze
                         elif interval == '1h':
-                            ticker_result['1H'] = score
+                            ticker_result['one_h_score'] = score
+                            ticker_result['one_h_squeeze'] = squeeze
                         elif interval == '90m':
-                            ticker_result['90M'] = score
+                            ticker_result['ninety_m_score'] = score
+                            ticker_result['ninety_m_squeeze'] = squeeze
                         elif interval == '30m':
-                            ticker_result['30M'] = score
+                            ticker_result['thirty_m_score'] = score
+                            ticker_result['thirty_m_squeeze'] = squeeze
                         elif interval == '15m':
-                            ticker_result['15M'] = score
+                            ticker_result['fifteen_m_score'] = score
+                            ticker_result['fifteen_m_squeeze'] = squeeze
 
                 except Exception as ticker_error:
                     print(f"Error processing {ticker} in {interval}: {ticker_error}")
@@ -293,15 +403,15 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
 
     for ticker_result in results:
 
-        long_score_columns = ['W', 'D', '5D', '1H', '90M', '30M', '15M']
-        ticker_result['LONG SCORE'] = sum(ticker_result.get(col, 0) for col in long_score_columns)
+        long_score_columns = ['w_score', 'd_score', 'five_d_score', 'one_h_score', 'ninety_m_score', 'thirty_m_score', 'fifteen_m_score']
+        ticker_result['long_score'] = sum(ticker_result.get(col, 0) for col in long_score_columns)
 
-        short_score_columns = ['15M', '30M', '90M', '1H']
-        ticker_result['SHORT SCORE'] = sum(ticker_result.get(col, 0) for col in short_score_columns)
+        short_score_columns = ['fifteen_m_score', 'thirty_m_score', 'ninety_m_score', 'one_h_score']
+        ticker_result['short_score'] = sum(ticker_result.get(col, 0) for col in short_score_columns)
 
-        ticker_result['LONG RANK'] = get_long_rank(ticker_result['LONG SCORE'])
-        ticker_result['SHORT RANK'] = get_short_rank(ticker_result['SHORT SCORE'])
-        ticker_result['TREND'] = determine_trend(ticker_result['LONG RANK'], ticker_result['SHORT RANK'])
+        ticker_result['long_rank'] = get_long_rank(ticker_result['long_score'])
+        ticker_result['short_rank'] = get_short_rank(ticker_result['short_score'])
+        ticker_result['trend'] = determine_trend(ticker_result['long_rank'], ticker_result['short_rank'])
 
     if not results:
         print("No results processed. Check API connectivity and data retrieval.")
@@ -309,8 +419,19 @@ intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk']):
 
     results_df = pd.DataFrame(results)
 
-    columns_order = ['TICKER SYMBOL', 'TICKER NAME', 'W', 'D', '5D', '1H', '90M', '30M', '15M', 'LONG SCORE', 'SHORT SCORE', 'LONG RANK', 'SHORT RANK', 'TREND']
+    columns_order = [
+        'ticker_symbol', 'ticker_name', 
+        'w_score', 'w_squeeze', 
+        'd_score', 'd_squeeze', 
+        'five_d_score', 'five_d_squeeze', 
+        'one_h_score', 'one_h_squeeze', 
+        'ninety_m_score', 'ninety_m_squeeze', 
+        'thirty_m_score', 'thirty_m_squeeze', 
+        'fifteen_m_score', 'fifteen_m_squeeze', 
+        'long_score', 'short_score', 
+        'long_rank', 'short_rank', 'trend'
+    ]
 
     results_df = results_df.reindex(columns=columns_order, fill_value=0)
     
-    return results_df
+    return results_df,results

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models.symbols import Symbols  # Adjust import based on your project structure
 from database import engine, SessionLocal
 from sqlalchemy import inspect
+from utils.symbols import get_symbols
 
 def is_database_empty(session: Session, model):
     """
@@ -14,26 +15,21 @@ def is_database_empty(session: Session, model):
     
     return session.query(model).first() is None
 
-def seed_users(session: Session):
+def seed_symbols(session: Session):
     """
-    Seed initial users if the table is empty
+    Seed initial symbols if the table is empty
     """
     if is_database_empty(session, Symbols):
-        initial_symbols = [
-            Symbols(
-                name="AAPL",
-            ),
-            Symbols(
-                name="GOOGL",
-            ),
-            Symbols(
-                name="TSLA",
-            )
-        ]
+        symbols_list = get_symbols()
+        initial_symbols = []
+        for item in symbols_list:
+            symbol = Symbols(name=item)
+            initial_symbols.append(symbol)
+        
         # Add and commit the initial users
         session.add_all(initial_symbols)
         session.commit()
-        print(f"Seeded {len(initial_symbols)} users")
+        print(f"Seeded {len(initial_symbols)} symbols")
     else:
         print("Symbols table already contains data. Skipping seeding.")
 
@@ -50,7 +46,7 @@ def seed_database():
     
     try:
         # Run different seeders
-        seed_users(session)
+        seed_symbols(session)
         # Add more seed functions for other models as needed
         
     except Exception as e:
