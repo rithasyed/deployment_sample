@@ -5,8 +5,7 @@ from database import Base
 class TickerScore(Base):
     __tablename__ = 'ticker_scores'
 
-    id = Column(Integer, primary_key=True, index=True)
-    ticker_symbol = Column(String, index=True)
+    ticker_symbol = Column(String, index=True, primary_key=True)
     ticker_name = Column(String, index=True)
 
     w_score = Column(Integer, nullable=True)
