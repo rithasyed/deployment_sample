@@ -79,6 +79,7 @@ def create_ticker_score(db: Session, score_data: dict):
                 short_rank=score_data.get('short_rank'),
                 trend=score_data.get('trend'),
                 score_change_trend=score_change_trend,
+                current_price=score_data.get('current_price'),
                 created_at=score_data.get('created_at', current_time)
             )
             db.add(db_ticker_score)

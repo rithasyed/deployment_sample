@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
+import numpy as np
 import pandas as pd
 import yfinance as yf
 import pandas_ta as ta
 import warnings
-from functools import lru_cache
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4, bb_num_dev=2.0, bb_length=20, kc_factor=1.75):
@@ -23,15 +23,46 @@ def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4, bb_num_
             except Exception:
                 return pd.Series([0] * len(series), index=series.index)
         
-        def calculate_squeeze(close, high, low, bb_num_dev=2.0, bb_length=20, kc_factor=1.75):
-            bb = ta.bbands(close, length=bb_length, std=bb_num_dev)
+        def calculate_squeeze(close, high, low, bb_length=20):
+            atr_length = 14
+            atr1_multiplier = 1.5
+            atr = ta.atr(high, low, close, length=atr_length)
+            atr1 = atr * atr1_multiplier
+
+            bb_mult = 2.0
+            kc_mult_high = 1.0
+            kc_mult_mid = 1.5
+            kc_mult_low = 2.0
+
+            bb = ta.bbands(close, length=bb_length, std=bb_mult)
+            bb_basis = bb['BBM_20_2.0']
+            bb_upper = bb['BBU_20_2.0']
+            bb_lower = bb['BBL_20_2.0']
+
             tr = ta.true_range(high, low, close)
-            atr = tr.rolling(window=bb_length).mean()
-            kc_middle = ta.ema(close, length=bb_length)
-            kc_upper = kc_middle + (kc_factor * atr)
-            kc_lower = kc_middle - (kc_factor * atr)
-            squeeze = (bb['BBU_20_2.0'] - bb['BBL_20_2.0']) < (kc_upper - kc_lower)
-            return squeeze.iloc[-1] if not squeeze.empty else False
+            atr = ta.sma(tr, bb_length)
+            kc_basis = ta.sma(close, bb_length)
+
+            kc_upper_high = kc_basis + atr * kc_mult_high
+            kc_lower_high = kc_basis - atr * kc_mult_high
+            kc_upper_mid = kc_basis + atr * kc_mult_mid
+            kc_lower_mid = kc_basis - atr * kc_mult_mid
+            kc_upper_low = kc_basis + atr * kc_mult_low
+            kc_lower_low = kc_basis - atr * kc_mult_low
+
+            no_sqz = (bb_lower < kc_lower_low) | (bb_upper > kc_upper_low)
+            low_sqz = (bb_lower >= kc_lower_low) | (bb_upper <= kc_upper_low)
+            mid_sqz = (bb_lower >= kc_lower_mid) | (bb_upper <= kc_upper_mid)
+            high_sqz = (bb_lower >= kc_lower_high) | (bb_upper <= kc_upper_high)
+
+            if high_sqz.iloc[-1]:
+                return "high squeeze"
+            elif mid_sqz.iloc[-1]:
+                return "mid squeeze"
+            elif low_sqz.iloc[-1]:
+                return "low squeeze"
+            else:
+                return "no squeeze"
         
         data['md'] = safe_macd(data['Close'])
         data['sma200'] = safe_ta_calc(ta.sma, data['Close'], length=min(200, len(data)))
@@ -105,9 +136,7 @@ def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4, bb_num_
             data['Close'], 
             data['High'], 
             data['Low'], 
-            bb_num_dev=bb_num_dev, 
-            bb_length=bb_length, 
-            kc_factor=kc_factor
+            bb_length=bb_length
         )
         
         score = int(data['score'].iloc[-1]) if not pd.isna(data['score'].iloc[-1]) else 0
@@ -304,6 +333,23 @@ def calculate_ticker_scores_multiframe(
         print(f"Processing batch {batch_num}/{len(ticker_batches)} ({len(ticker_batch)} tickers)")
         batch_results = []
 
+        current_prices = {}
+        for ticker in ticker_batch:
+            try:
+                stock = yf.Ticker(ticker)
+                price = stock.info.get('currentPrice')
+                if price is not None and pd.notna(price) and not np.isinf(price):
+                    current_prices[ticker] = float(price)
+                else:
+                    price = stock.info.get('regularMarketPrice')
+                    if price is not None and pd.notna(price) and not pd.isinf(price):
+                        current_prices[ticker] = float(price)
+                    else:
+                        current_prices[ticker] = None
+            except Exception as e:
+                print(f"Error fetching current price for {ticker}: {str(e)}")
+                current_prices[ticker] = None
+
         for interval in intervals:
             end_date = datetime.now()
             
@@ -348,7 +394,8 @@ def calculate_ticker_scores_multiframe(
                         if ticker_result is None:
                             ticker_result = {
                                 'ticker_symbol': ticker,
-                                'ticker_name': ticker_names.get(ticker, ticker)
+                                'ticker_name': ticker_names.get(ticker, ticker),
+                                'current_price': current_prices[ticker] if current_prices[ticker] is not None else 0.0 
                             }
                             batch_results.append(ticker_result)
 
@@ -397,9 +444,13 @@ def calculate_ticker_scores_multiframe(
         return pd.DataFrame()
     
     results_df = pd.DataFrame(all_results)
+
+    if 'current_price' in results_df.columns:
+        results_df['current_price'] = results_df['current_price'].fillna(0.0)
+        results_df['current_price'] = results_df['current_price'].replace([float('inf'), float('-inf')], 0.0)
     
     columns_order = [
-        'ticker_symbol', 'ticker_name', 
+        'ticker_symbol', 'ticker_name', 'current_price',
         'w_score', 'w_squeeze', 
         'd_score', 'd_squeeze', 
         'five_d_score', 'five_d_squeeze', 

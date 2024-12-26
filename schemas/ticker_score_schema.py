@@ -8,19 +8,19 @@ class TickerScoreCreate(BaseModel):
     interval: Optional[str] = None
     
     w_score: Optional[int] = None
-    w_squeeze: Optional[bool] = None
+    w_squeeze: Optional[str] = None
     d_score: Optional[int] = None
-    d_squeeze: Optional[bool] = None
+    d_squeeze: Optional[str] = None
     five_d_score: Optional[int] = None
-    five_d_squeeze: Optional[bool] = None
+    five_d_squeeze: Optional[str] = None
     one_h_score: Optional[int] = None
-    one_h_squeeze: Optional[bool] = None
+    one_h_squeeze: Optional[str] = None
     ninety_m_score: Optional[int] = None
-    ninety_m_squeeze: Optional[bool] = None
+    ninety_m_squeeze: Optional[str] = None
     thirty_m_score: Optional[int] = None
-    thirty_m_squeeze: Optional[bool] = None
+    thirty_m_squeeze: Optional[str] = None
     fifteen_m_score: Optional[int] = None
-    fifteen_m_squeeze: Optional[bool] = None
+    fifteen_m_squeeze: Optional[str] = None
     
     long_score: Optional[int] = None
     short_score: Optional[int] = None
@@ -28,6 +28,7 @@ class TickerScoreCreate(BaseModel):
     short_rank: Optional[str] = None
     trend: Optional[str] = None
     score_change_trend: Optional[str] = None
+    current_price: Optional[float] = None
 
 class TickerScoreUpdate(BaseModel):
 
@@ -36,19 +37,19 @@ class TickerScoreUpdate(BaseModel):
     interval: Optional[str] = None
     
     w_score: Optional[int] = None
-    w_squeeze: Optional[bool] = None
+    w_squeeze: Optional[str] = None
     d_score: Optional[int] = None
-    d_squeeze: Optional[bool] = None
+    d_squeeze: Optional[str] = None
     five_d_score: Optional[int] = None
-    five_d_squeeze: Optional[bool] = None
+    five_d_squeeze: Optional[str] = None
     one_h_score: Optional[int] = None
-    one_h_squeeze: Optional[bool] = None
+    one_h_squeeze: Optional[str] = None
     ninety_m_score: Optional[int] = None
-    ninety_m_squeeze: Optional[bool] = None
+    ninety_m_squeeze: Optional[str] = None
     thirty_m_score: Optional[int] = None
-    thirty_m_squeeze: Optional[bool] = None
+    thirty_m_squeeze: Optional[str] = None
     fifteen_m_score: Optional[int] = None
-    fifteen_m_squeeze: Optional[bool] = None
+    fifteen_m_squeeze: Optional[str] = None
     
     long_score: Optional[int] = None
     short_score: Optional[int] = None
@@ -56,6 +57,7 @@ class TickerScoreUpdate(BaseModel):
     short_rank: Optional[str] = None
     trend: Optional[str] = None
     score_change_trend: Optional[str] = None
+    current_price: Optional[float] = None
 
 class TickerScoreResponse(TickerScoreCreate):
     id: int
