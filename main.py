@@ -59,7 +59,6 @@ async def flatten_query_string_lists(request: Request, call_next):
 
     return await call_next(request)
 
-# WebSocket route
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
