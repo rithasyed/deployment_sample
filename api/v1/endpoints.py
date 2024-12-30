@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends
+from services.stock_analyzer import StockRequest, analyze_stock
+from models.tickerScores import TickerScore
 from services.ticker_score_crud import create_ticker_score, delete_old_ticker_scores, get_ticker_scores
-from services.scores import calculate_ticker_scores_multiframe
+from services.scores import add_ticker_to_file, calculate_ticker_scores_multiframe
 from services.ticker import fetch_yahoo_data
 import pandas as pd
 from fastapi import HTTPException
@@ -110,4 +112,52 @@ def clean_old_ticker_scores(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
+@router.post("/calculate-ticker-score/{ticker_symbol}")
+async def calculate_single_ticker_score(
+    ticker_symbol: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        existing_score = db.query(TickerScore).filter(
+            TickerScore.ticker_symbol == ticker_symbol
+        ).first()
+        
+        if existing_score:
+            return HTTPException(
+                status_code=400, 
+                detail=f"Ticker {ticker_symbol} already exists in database"
+            )
+        was_added, message = add_ticker_to_file(ticker_symbol)
+        if not was_added and "already exists" not in message:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to add ticker: {message}"
+            )
+        scores_df, results = calculate_ticker_scores_multiframe(single_ticker=ticker_symbol)
+        
+        if not results:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"No data found for ticker {ticker_symbol}"
+            )
+
+        stored_score = create_ticker_score(db, results[0]) if was_added else None
+        
+        response = {**results[0]}
+        if stored_score:
+            response.update({
+                'score_change_trend': stored_score.score_change_trend,
+                'created_at': stored_score.created_at
+            })
+            
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
+@router.post("/analyze")
+async def analyze_endpoint(request: StockRequest):
+    try:
+        return analyze_stock(request.ticker)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -31,5 +31,6 @@ class TickerScore(Base):
     trend = Column(String, nullable=True)
     score_change_trend = Column(String, nullable=True)
     current_price = Column(Float, nullable=True)
+    sector = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))

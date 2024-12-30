@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -193,138 +194,74 @@ def determine_trend(long_rank, short_rank):
         return "Downtrend"
     else:
         return ""
+    
+def add_ticker_to_file(ticker: str, filename: str = 'tickers.txt') -> Tuple[bool, str]:
+
+    try:
+        # First verify if it's a valid ticker using yfinance
+        ticker_info = yf.Ticker(ticker)
+        ticker_name = ticker_info.info.get('longName', ticker)
+        
+        # Read existing tickers
+        existing_tickers = set()
+        try:
+            with open(filename, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        symbol = line.strip().split('|')[0]
+                        existing_tickers.add(symbol)
+        except FileNotFoundError:
+            # Create file if it doesn't exist
+            pass
+
+        # If ticker already exists, return False
+        if ticker in existing_tickers:
+            return False, "Ticker already exists in file"
+
+        # Append the new ticker
+        with open(filename, 'a') as f:
+            f.write(f"\n{ticker}|{ticker_name}")
+        
+        return True, "Ticker added successfully"
+    
+    except Exception as e:
+        return False, f"Error adding ticker: {str(e)}"
+
+def load_tickers(filename: str) -> Tuple[List[str], Dict[str, str]]:
+
+    tickers = []
+    ticker_names = {}
+    
+    try:
+        with open(filename, 'r') as f:
+            for line in f:
+                if line.strip():
+                    symbol, name = line.strip().split('|')
+                    tickers.append(symbol)
+                    ticker_names[symbol] = name
+    except FileNotFoundError:
+        with open(filename, 'w') as f:
+            pass
+    
+    return tickers, ticker_names
 
 def calculate_ticker_scores_multiframe(
-    tickers=['ABBV', 'AI', 'AMAT', 'AMD', 'AMZN', 'ARKK', 'ASTS', 'AAPL', 'AVGO', 'BA', 'BABA', 'BAC', 'BIDU',
-    'BKNG', 'BTC-USD', 'CAT', 'C', 'CMG', 'COST', 'CRSP', 'CVX', 'DDOG', 'DE', 'DIA', 'DOCU',
-    'DUK', 'EOG', 'ES', 'FSLR', 'GBTC', 'GC=F', 'GE', 'GLD', 'GOOG', 'GOOGL', 'GS', 'GTLB', 'HD', 'IBM',
-    'IBB', 'IWM', 'IYR', 'IYT', 'JNJ', 'JPM', 'KO', 'LLY', 'LMND', 'LMT', 'LOW', 'LRCX', 'LULU', 'MCD',
-    'META', 'MP', 'MRK', 'MSFT', 'MU', 'NEE', 'NET', 'NFLX', 'NKE', 'NQ=F', 'NVDA', 'OKTA', 'OUST',
-    'ORCL', 'PEP', 'PG', 'PLTR', 'PTON', 'PSNL', 'QCOM', 'QQQ', 'RBRK', 'RIVN', 'ROKU', 'RSP', 'RTX',
-    'RTY=F', 'SHOP', 'SLV', 'SMCI', 'SMH', 'SO', 'SOFI', 'SQ', 'SU', 'SBUX', 'TGT', 'TJX', 'TSM',
-    'TSLA', 'UNH', 'UNP', 'UPS', 'VLO', 'WFC', 'WMT', 'XLB', 'XLC', 'XLE', 'XLK', 'XLI', 'XLU', 'XLV',
-    'XOM', 'YM=F', 'Z', 'ZM', 'SPY', 'XLF'],
+    tickers_file='tickers.txt',
     intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk'],
-    batch_size=10
+    batch_size=10,
+    single_ticker=None
 ):
-    ticker_names = {
-        'QQQ': 'INVSC QQQ TRUST SRS 1 ETF',
-        'SPY': 'SPDR S&P 500 ETF',
-        'IWM': 'ISHARES RUSSELL 2000 ETF',
-        'DIA': 'SPDR DOW JONES INDUSTRIAL AVRG ETF',
-        'RSP': 'INVSC S P 500 EQUAL WEIGHT ETF IV',
-        'BTC-USD': 'Bitcoin Futures',
-        'RTY=F': 'E-mini Russell 2000 Index Futures',
-        'YM=F': 'Mini Dow Jones Industrial Average Futures,ETH',
-        'GC=F': 'Gold Futures, ETH',
-        'NQ=F': 'E-mini Nasdaq 100 Index Futures,ETH',
-        'ES': 'E-mini S&P 500 Futures,ETH',
-        'XLK': 'TECHNOLOGY SELECT SECTOR SPDR ETF IV',
-        'SMH': 'VANECK SEMICONDUCTOR ETF',
-        'XLF': 'SELECT STR FINANCIAL SELECT SPDR ETF',
-        'XLV': 'SELECT SECTOR HEALTH CARE SPDR ETF',
-        'XLE': 'ENERGY SELECT SECTOR SPDR ETF',
-        'XLC': 'COMMUNICAT SVS SLCT SEC SPDR ETF',
-        'IYR': 'ISHARES US REAL ESTATE ETF IV',
-        'ARKK': 'ARK INNOVATION ETF',
-        'XLU': 'SELECT SECTOR UTI SELECT SPDR ETF',
-        'XLB': 'SPDR FUND MATERIALS SELECT SECTR ETF',
-        'IYT': 'ISHARES US TRANSPORTATION ETF',
-        'XLI': 'SELECT SECTOR INDUSTRIAL SPDR ETF',
-        'IBB': 'iShares Nasdaq Biotechnology Index Fund',
-        'GBTC': 'GRAYSCALE BITCOIN TR BTC',
-        'AMZN': 'Amazon.com Inc',
-        'PLTR': 'PALANTIR TECHNOLOGIE A',
-        'NFLX': 'NETFLIX INC',
-        'META': 'META PLATFORMS INC A',
-        'TSLA': 'TESLA INC',
-        'WMT': 'WALMART INC',
-        'CRM': 'Salesforce Inc',
-        'ORCL': 'ORACLE CORP',
-        'AAPL': 'APPLE INC',
-        'C': 'Citigroup Inc',
-        'MSFT': 'Microsoft Corp',
-        'PTON': 'PELOTON INTERACTIVE',
-        'JPM': 'JPMORGAN CHASE & CO',
-        'UAL': 'United Airlines Hldg',
-        'GOOG': 'ALPHABET INC C',
-        'LMND': 'LEMONADE INC',
-        'NVDA': 'NVIDIA CORP',
-        'WFC': 'WELLS FARGO & CO',
-        'OKTA': 'OKTA INC A',
-        'SMCI': 'SUPER MICRO COMPUTER',
-        'AMD': 'Advanced Micro Devic',
-        'INTC': 'INTEL CORP',
-        'ABBV': 'ABBVIE INC',
-        'BABA': 'ALIBABA GROUP HLDG L ADR',
-        'GOOGL': 'ALPHABET INC A',
-        'AVGO': 'BROADCOM INC',
-        'BA': 'BOEING CO',
-        'BKNG': 'BOOKING HLDGS INC',
-        'SQ': 'Block Inc A',
-        'CAT': 'CATERPILLAR INC',
-        'CVX': 'CHEVRON CORP NEW',
-        'CMG': 'CHIPOTLE MEXICAN GRI',
-        'NET': 'CLOUDFLARE INC A',
-        'CRSP': 'CRISPR THERAPEUTICS',
-        'DDOG': 'DATADOG INC A',
-        'DE': 'DEERE & CO',
-        'TSM': 'TAIWAN SEMICONDUCTOR ADR',
-        'DUK': 'DUKE ENERGY CORP NEW',
-        'LLY': 'ELi Lilly and Co',
-        'EOG': 'EOG RES INC',
-        'XOM': 'EXXON MOBIL CORP',
-        'FSLR': 'FIRST SOLAR INC',
-        'GE': 'GE Aerospace',
-        'GTLB': 'GITLAB INC A',
-        'GS': 'GOLDMAN SACHS GROUP',
-        'SOFI': 'SOFI TECHNOLOGIES IN',
-        'HD': 'HOME DEPOT INC',
-        'IBM': 'IBM CORP',
-        'RIVN': 'RIVIAN AUTOMOTIVE IN A',
-        'RTX': 'RTX CORP',
-        'RBRK': 'RUBRIK INC A',
-        'AI': 'C3 AI INC A',
-        'MU': 'MICRON TECHNOLOGY IN',
-        'MRK': 'Merck & Co. Inc.',
-        'NEE': 'NEXTERA ENERGY INC',
-        'NKE': 'NIKE INC B',
-        'OUST': 'OUSTER INC A',
-        'PEP': 'PEPSICO INC',
-        'PSNL': 'PERSONALIS INC',
-        'PG': 'PROCTER & GAMBLE CO',
-        'QCOM': 'QUALCOMM INC',
-        'ROKU': 'ROKU INC A',
-        'SHOP': 'SHOPIFY INC A',
-        'SO': 'SOUTHERN CO',
-        'SBUX': 'STARBUCKS CORP',
-        'SU': 'SUNCOR ENERGY INC NE',
-        'TGT': 'TARGET CORP',
-        'TJX': 'TJX COS INC NEW',
-        'KO': 'The Coca-Cola Co',
-        'UNP': 'UNION PAC CORP',
-        'UPS': 'UNITED PARCEL SVC IN B',
-        'UNH': 'UNITEDHEALTH GROUP I',
-        'VLO': 'VALERO ENERGY CORP N',
-        'COST': 'COSTCO WHSL CORP NEW',
-        'Z': 'ZILLOW GROUP INC Z',
-        'ZM': 'ZOOM COMMUNICATIONS A',
-        'AMAT': 'APPLIED MATLS INC',
-        'ASTS': 'AST SPACEMOBILE INC A',
-        'BAC': 'BANK OF AMERICA CORP',
-        'BIDU': 'BAIDU INC A ADR',
-        'BRK/B': 'BERKSHIRE HATHAWAY B',
-        'DOCU': 'DOCUSIGN INC',
-        'JNJ': 'JOHNSON & JOHNSON',
-        'LMT': 'LOCKHEED MARTIN CORP',
-        'LOW': 'LOWES COS INC',
-        'LRCX': 'LAM RESH CORP Equity',
-        'LULU': 'LULULEMON ATHLETICA',
-        'MCD': 'MCDONALDS CORP',
-        'MP': 'MP MATLS CORP A',
-        'SLV': 'ISHARES SILVER TRUST ETF IV',
-        'SPX': 'S & P 500 INDEX'
-        }
+    if single_ticker:
+        was_added, message = add_ticker_to_file(single_ticker, tickers_file)
+        if not was_added and "already exists" not in message:
+            raise Exception(f"Failed to process ticker: {message}")
+            
+        tickers = [single_ticker]
+        _, ticker_names = load_tickers(tickers_file)
+        if single_ticker not in ticker_names:
+            ticker_names[single_ticker] = single_ticker
+    else:
+        tickers, ticker_names = load_tickers(tickers_file)
 
     ticker_batches = [tickers[i:i + batch_size] for i in range(0, len(tickers), batch_size)]
     all_results = []
@@ -334,6 +271,7 @@ def calculate_ticker_scores_multiframe(
         batch_results = []
 
         current_prices = {}
+        sectors = {}
         for ticker in ticker_batch:
             try:
                 stock = yf.Ticker(ticker)
@@ -341,14 +279,19 @@ def calculate_ticker_scores_multiframe(
                 if price is not None and pd.notna(price) and not np.isinf(price):
                     current_prices[ticker] = float(price)
                 else:
-                    price = stock.info.get('regularMarketPrice')
-                    if price is not None and pd.notna(price) and not pd.isinf(price):
+                    price = stock.info.get('navPrice')
+                    if price is not None and pd.notna(price) and not np.isinf(price):
                         current_prices[ticker] = float(price)
                     else:
                         current_prices[ticker] = None
+
+                sector = stock.info.get('sector', 'N/A')
+                sectors[ticker] = sector
+
             except Exception as e:
-                print(f"Error fetching current price for {ticker}: {str(e)}")
+                print(f"Error fetching data for {ticker}: {str(e)}")
                 current_prices[ticker] = None
+                sectors[ticker] = 'N/A'
 
         for interval in intervals:
             end_date = datetime.now()
@@ -395,7 +338,8 @@ def calculate_ticker_scores_multiframe(
                             ticker_result = {
                                 'ticker_symbol': ticker,
                                 'ticker_name': ticker_names.get(ticker, ticker),
-                                'current_price': current_prices[ticker] if current_prices[ticker] is not None else 0.0 
+                                'current_price': current_prices[ticker] if current_prices[ticker] is not None else 0.0,
+                                'sector': sectors[ticker]
                             }
                             batch_results.append(ticker_result)
 
@@ -450,7 +394,7 @@ def calculate_ticker_scores_multiframe(
         results_df['current_price'] = results_df['current_price'].replace([float('inf'), float('-inf')], 0.0)
     
     columns_order = [
-        'ticker_symbol', 'ticker_name', 'current_price',
+        'ticker_symbol', 'ticker_name', 'current_price', 'sector',
         'w_score', 'w_squeeze', 
         'd_score', 'd_squeeze', 
         'five_d_score', 'five_d_squeeze', 

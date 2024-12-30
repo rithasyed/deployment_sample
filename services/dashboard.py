@@ -27,9 +27,14 @@ def convert_data(data):
 def get_stock_data(ticker):
     try:
         stock = yf.Ticker(ticker)
-
         info = stock.info
-        current_price = stock.info['currentPrice']
+
+        if 'currentPrice' in info:
+            current_price = info['currentPrice']
+        elif 'navPrice' in info:
+            current_price = info['navPrice']
+        else:
+            raise HTTPException(status_code=404, detail="Price information not available for the given ticker.")
         previous_close = stock.info['previousClose']
 
         absolute_Change = current_price - previous_close
@@ -47,7 +52,6 @@ def get_stock_data(ticker):
             "GOOGL",
             "TSLA",
             "META",
-            "BRK.B",
             "UNH",
             "XOM",
             "QQQ",
@@ -63,7 +67,6 @@ def get_stock_data(ticker):
             "GOOGL": "https://logo.clearbit.com/google.com",
             "TSLA": "https://logo.clearbit.com/tesla.com",
             "META": "https://logo.clearbit.com/meta.com",
-            "BRK.B": "https://logo.clearbit.com/berkshirehathaway.com",
             "UNH": "https://logo.clearbit.com/unitedhealthgroup.com",
             "XOM": "https://logo.clearbit.com/exxonmobil.com",
             "QQQ": "https://logo.clearbit.com/invesco.com",

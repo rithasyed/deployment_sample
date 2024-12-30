@@ -29,6 +29,7 @@ class TickerScoreCreate(BaseModel):
     trend: Optional[str] = None
     score_change_trend: Optional[str] = None
     current_price: Optional[float] = None
+    sector: Optional[str] = None
 
 class TickerScoreUpdate(BaseModel):
 
@@ -58,6 +59,7 @@ class TickerScoreUpdate(BaseModel):
     trend: Optional[str] = None
     score_change_trend: Optional[str] = None
     current_price: Optional[float] = None
+    sector: Optional[str] = None
 
 class TickerScoreResponse(TickerScoreCreate):
     id: int
