@@ -1,8 +1,10 @@
+from typing import List
 from fastapi import APIRouter, Depends
+from services.ticker_categories_crud import get_ticker_categories
 from services.stock_analyzer import StockRequest, analyze_stock
 from models.tickerScores import TickerScore
-from services.ticker_score_crud import create_ticker_score, delete_old_ticker_scores, get_ticker_scores
-from services.scores import add_ticker_to_file, calculate_ticker_scores_multiframe
+from services.ticker_score_crud import create_ticker_score, delete_old_ticker_scores, get_ticker_scores, soft_delete_ticker_score
+from services.scores import add_ticker_to_file_and_db, calculate_ticker_scores_multiframe
 from services.ticker import fetch_yahoo_data
 import pandas as pd
 from fastapi import HTTPException
@@ -67,10 +69,10 @@ def get_stock_info(ticker: str):
         print(f"Error in get_stock_info: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
-@router.get("/ticker-scores")
-async def fetch_ticker_scores(
-    db: Session = Depends(get_db), 
-    store_scores: bool = True 
+@router.post("/ticker-scores")
+async def create_ticker_scores(
+    db: Session = Depends(get_db),
+    store_scores: bool = True
 ):
     try:
         scores_df, results = calculate_ticker_scores_multiframe()
@@ -112,12 +114,20 @@ def clean_old_ticker_scores(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
-@router.post("/calculate-ticker-score/{ticker_symbol}")
+@router.post("/single-ticker-score/{ticker_symbol}")
 async def calculate_single_ticker_score(
     ticker_symbol: str,
+    category_id: int,
     db: Session = Depends(get_db)
 ):
     try:
+        valid_category_ids = {1, 2, 3, 4, 5} 
+        if category_id not in valid_category_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category ID. Must be one of: {', '.join(map(str, valid_category_ids))}"
+            )
+            
         existing_score = db.query(TickerScore).filter(
             TickerScore.ticker_symbol == ticker_symbol
         ).first()
@@ -127,13 +137,24 @@ async def calculate_single_ticker_score(
                 status_code=400, 
                 detail=f"Ticker {ticker_symbol} already exists in database"
             )
-        was_added, message = add_ticker_to_file(ticker_symbol)
+
+        # Pass the db session to the function
+        was_added, message = add_ticker_to_file_and_db(
+            ticker=ticker_symbol, 
+            category_id=category_id,
+            db=db
+        )
+        
         if not was_added and "already exists" not in message:
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to add ticker: {message}"
             )
-        scores_df, results = calculate_ticker_scores_multiframe(single_ticker=ticker_symbol)
+
+        scores_df, results = calculate_ticker_scores_multiframe(
+            single_ticker=ticker_symbol,
+            category_id=category_id
+        )
         
         if not results:
             raise HTTPException(
@@ -153,11 +174,44 @@ async def calculate_single_ticker_score(
         return response
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-    
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+
+@router.delete("/ticker-scores/{ticker_symbol}/soft-delete")
+def soft_delete_ticker(
+    ticker_symbol: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        result = soft_delete_ticker_score(db, ticker_symbol)
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ticker score with symbol {ticker_symbol} not found"
+            )
+        return {"message": f"Successfully soft deleted ticker score for {ticker_symbol}"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+
 @router.post("/analyze")
 async def analyze_endpoint(request: StockRequest):
     try:
         return analyze_stock(request.ticker)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/ticker-categories", response_model=List[dict])
+def fetch_ticker_categories(db: Session = Depends(get_db)):
+    try:
+        categories = get_ticker_categories(db)
+        return [{"id": cat.id, "name": cat.name, "description": cat.description} for cat in categories]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while fetching ticker categories: {str(e)}"
+        )

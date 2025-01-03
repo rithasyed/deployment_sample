@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from database import Base
 
 class TickerScore(Base):
@@ -8,6 +9,7 @@ class TickerScore(Base):
     id = Column(Integer, primary_key=True, index=True)
     ticker_symbol = Column(String, index=True)
     ticker_name = Column(String, index=True)
+    is_deleted = Column(Boolean, default=False, index=True)
 
     w_score = Column(Integer, nullable=True)
     w_squeeze = Column(String, nullable=True)
@@ -34,3 +36,6 @@ class TickerScore(Base):
     sector = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+
+    category_id = Column(Integer, ForeignKey('ticker_categories.id'))
+    category = relationship("TickerCategory")

@@ -4,15 +4,19 @@ from schemas.symbols_schema import SymbolCreate, Symbol
 
 # Create a new symbol in the database
 def create_symbol(db: Session, symbol: SymbolCreate):
-    
-    db_symbol = Symbols(name=symbol.name)
+    db_symbol = Symbols(
+        name=symbol.name,
+        full_name=symbol.full_name,
+        category_id=symbol.category_id
+    )
     db.add(db_symbol)
     db.commit()
     db.refresh(db_symbol)
-    # Return Pydantic model
     return Symbol(
         id=db_symbol.id,
-        name=db_symbol.name
+        name=db_symbol.name,
+        full_name=db_symbol.full_name,
+        category_id=db_symbol.category_id
     )
 
 # Retrieve a single symbol by its ID

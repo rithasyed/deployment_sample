@@ -1,4 +1,5 @@
 # seeder.py
+from utils.category_seeder import seed_categories
 from sqlalchemy.orm import Session
 from models.symbols import Symbols  # Adjust import based on your project structure
 from database import engine, SessionLocal
@@ -22,11 +23,17 @@ def seed_symbols(session: Session):
     if is_database_empty(session, Symbols):
         symbols_list = get_symbols()
         initial_symbols = []
-        for item in symbols_list:
-            symbol = Symbols(name=item)
-            initial_symbols.append(symbol)
         
-        # Add and commit the initial users
+        for item in symbols_list:
+            symbol_data = item.split('|')
+            if len(symbol_data) >= 2:
+                symbol = Symbols(
+                    name=symbol_data[0],     
+                    full_name=symbol_data[1], 
+                    category_id=int(symbol_data[2]) if len(symbol_data) > 2 else None
+                )
+                initial_symbols.append(symbol)
+        
         session.add_all(initial_symbols)
         session.commit()
         print(f"Seeded {len(initial_symbols)} symbols")
@@ -47,6 +54,7 @@ def seed_database():
     try:
         # Run different seeders
         seed_symbols(session)
+        seed_categories(session)
         # Add more seed functions for other models as needed
         
     except Exception as e:

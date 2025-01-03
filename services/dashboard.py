@@ -34,31 +34,20 @@ def get_stock_data(ticker):
         elif 'navPrice' in info:
             current_price = info['navPrice']
         else:
-            raise HTTPException(status_code=404, detail="Price information not available for the given ticker.")
+            current_price = None
+        
         previous_close = stock.info['previousClose']
-
-        absolute_Change = current_price - previous_close
-        percentage_change = (absolute_Change / previous_close) * 100
+        if current_price is not None:
+            absolute_Change = current_price - previous_close
+            percentage_change = (absolute_Change / previous_close) * 100
+        else:
+            absolute_Change = None
+            percentage_change = None
 
         financials = convert_data(stock.financials) if stock.financials is not None else None
         recommendations = convert_data(stock.recommendations) if stock.recommendations is not None else None
         cash_flow = convert_data(stock.cashflow) if stock.cashflow is not None else None
 
-        ticker_symbols = [
-            "AAPL",
-            "MSFT",
-            "AMZN",
-            "NVDA",
-            "GOOGL",
-            "TSLA",
-            "META",
-            "UNH",
-            "XOM",
-            "QQQ",
-            "IWM",
-            "NFLX",
-            "SPY"
-        ]
         logo_urls = {
             "AAPL": "https://logo.clearbit.com/apple.com",
             "MSFT": "https://logo.clearbit.com/microsoft.com",
@@ -85,7 +74,7 @@ def get_stock_data(ticker):
             'recommendations': recommendations,
             'cash_flow':cash_flow,
             'info': info,
-            'ticker_symbols': ticker_symbols,
+            # 'ticker_symbols': ticker_symbols,
             'logo_url': logo_urls.get(ticker, "/placeholder.svg")
         }
         

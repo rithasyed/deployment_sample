@@ -2,9 +2,12 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
+from requests import Session
 import yfinance as yf
 import pandas_ta as ta
 import warnings
+from schemas.symbols_schema import SymbolCreate
+from services.symbol_crud import create_symbol, get_symbol_names
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def calculate_ticker_score_from_data(data, atr_period=9, atr_factor=2.4, bb_num_dev=2.0, bb_length=20, kc_factor=1.75):
@@ -195,14 +198,28 @@ def determine_trend(long_rank, short_rank):
     else:
         return ""
     
-def add_ticker_to_file(ticker: str, filename: str = 'tickers.txt') -> Tuple[bool, str]:
+def add_ticker_to_file_and_db(
+    ticker: str, 
+    category_id: int, 
+    db: Session,
+    filename: str = 'tickers.txt'
+) -> Tuple[bool, str]:
+    valid_category_ids = {1, 2, 3, 4, 5}
+    
+    if category_id not in valid_category_ids:
+        return False, f"Invalid category ID. Must be one of: {', '.join(map(str, valid_category_ids))}"
 
     try:
-        # First verify if it's a valid ticker using yfinance
+        # Verify if it's a valid ticker using yfinance
         ticker_info = yf.Ticker(ticker)
         ticker_name = ticker_info.info.get('longName', ticker)
         
-        # Read existing tickers
+        # Check if ticker exists in database
+        existing_symbols = get_symbol_names(db)
+        if (ticker,) in existing_symbols:
+            return False, "Ticker already exists in database"
+        
+        # Read existing tickers from file
         existing_tickers = set()
         try:
             with open(filename, 'r') as f:
@@ -214,54 +231,67 @@ def add_ticker_to_file(ticker: str, filename: str = 'tickers.txt') -> Tuple[bool
             # Create file if it doesn't exist
             pass
 
-        # If ticker already exists, return False
+        # If ticker already exists in file, return False
         if ticker in existing_tickers:
             return False, "Ticker already exists in file"
 
-        # Append the new ticker
+        # Create new symbol in database
+        symbol_data = SymbolCreate(
+            name=ticker,
+            full_name=ticker_name,
+            category_id=category_id
+        )
+        create_symbol(db, symbol_data)
+
+        # Append the new ticker to file
         with open(filename, 'a') as f:
-            f.write(f"\n{ticker}|{ticker_name}")
+            f.write(f"\n{ticker}|{ticker_name}|{category_id}")
         
-        return True, "Ticker added successfully"
+        return True, "Ticker added successfully to both file and database"
     
     except Exception as e:
         return False, f"Error adding ticker: {str(e)}"
 
-def load_tickers(filename: str) -> Tuple[List[str], Dict[str, str]]:
-
+def load_tickers(filename: str) -> Tuple[List[str], Dict[str, str], Dict[str, int]]:
     tickers = []
     ticker_names = {}
+    ticker_categories = {}
     
     try:
         with open(filename, 'r') as f:
             for line in f:
                 if line.strip():
-                    symbol, name = line.strip().split('|')
+                    parts = line.strip().split('|')
+                    symbol = parts[0]
+                    name = parts[1]
+                    category_id = int(parts[2]) if len(parts) > 2 else 1 
+                    
                     tickers.append(symbol)
                     ticker_names[symbol] = name
+                    ticker_categories[symbol] = category_id
     except FileNotFoundError:
         with open(filename, 'w') as f:
             pass
     
-    return tickers, ticker_names
+    return tickers, ticker_names, ticker_categories
 
 def calculate_ticker_scores_multiframe(
     tickers_file='tickers.txt',
     intervals=['15m', '30m', '90m', '1h', '1d', '5d', '1wk'],
     batch_size=10,
-    single_ticker=None
+    single_ticker=None,
+    category_id=None  
 ):
     if single_ticker:
-        was_added, message = add_ticker_to_file(single_ticker, tickers_file)
-        if not was_added and "already exists" not in message:
-            raise Exception(f"Failed to process ticker: {message}")
-            
+        if category_id is None:
+            raise ValueError("category_id must be provided when adding a single ticker")
+        
         tickers = [single_ticker]
-        _, ticker_names = load_tickers(tickers_file)
-        if single_ticker not in ticker_names:
-            ticker_names[single_ticker] = single_ticker
+        ticker_names = {single_ticker: single_ticker}
+        ticker_categories = {single_ticker: category_id}
+        
     else:
-        tickers, ticker_names = load_tickers(tickers_file)
+        tickers, ticker_names, ticker_categories = load_tickers(tickers_file)
 
     ticker_batches = [tickers[i:i + batch_size] for i in range(0, len(tickers), batch_size)]
     all_results = []
@@ -339,7 +369,8 @@ def calculate_ticker_scores_multiframe(
                                 'ticker_symbol': ticker,
                                 'ticker_name': ticker_names.get(ticker, ticker),
                                 'current_price': current_prices[ticker] if current_prices[ticker] is not None else 0.0,
-                                'sector': sectors[ticker]
+                                'sector': sectors[ticker],
+                                'category_id': ticker_categories.get(ticker)
                             }
                             batch_results.append(ticker_result)
 
@@ -394,7 +425,7 @@ def calculate_ticker_scores_multiframe(
         results_df['current_price'] = results_df['current_price'].replace([float('inf'), float('-inf')], 0.0)
     
     columns_order = [
-        'ticker_symbol', 'ticker_name', 'current_price', 'sector',
+        'ticker_symbol', 'ticker_name', 'current_price', 'sector', 'category_id',
         'w_score', 'w_squeeze', 
         'd_score', 'd_squeeze', 
         'five_d_score', 'five_d_squeeze', 
